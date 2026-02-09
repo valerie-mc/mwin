@@ -1,7 +1,8 @@
 use std::thread;
 use windows::Win32::{
-    System::LibraryLoader::GetModuleHandleW,
     Foundation::*,
+    Graphics::Gdi::ScreenToClient,
+    System::LibraryLoader::GetModuleHandleW,
     UI::{Input::KeyboardAndMouse::GetFocus, WindowsAndMessaging::*},
 };
 use windows_strings::{w, HSTRING, PCWSTR};
@@ -52,7 +53,7 @@ impl Window {
         let mut point: POINT = Default::default();
         unsafe { 
             GetCursorPos(&mut point).unwrap();
-            // ScreenToClient(&self.wnd_handle, &mut point);
+            let _ = ScreenToClient(self.wnd_handle, &mut point);
         }
         (point.x, point.y)
     }

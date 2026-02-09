@@ -35,7 +35,7 @@
 
 
 ## Clean-Up Tasks
- - Properly deal with unwraps, expects, and panics
+ - Properly deal with unwraps, expects, panics, and let _ = ...
  - Properly document your code (using actually doucmentation)
 
 
