@@ -49,8 +49,3 @@ pub struct Input {
 }
 
 
-// Getting mouse pos
-// let mut point: POINT;
-// GetCursorPos(&point);
-// ScreenToClient(wnd_handle, &point);
-// point.x and point.y

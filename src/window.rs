@@ -13,6 +13,7 @@ use windows_strings::{w, HSTRING, PCWSTR};
 // * Note: Currently, this struct assumes we are running on windows (see wnd_handle as evidence)
 pub struct Window {
     title: String,
+    // input: Input,
     wnd_handle: HWND,
 }
 
@@ -35,11 +36,32 @@ impl Window {
 
     // * Getters
     // Returns the positions of the windows four edges (left, top, right, bottom)
-    pub fn get_pos(&self) -> (i32, i32, i32, i32) {
+    pub fn get_wnd_pos(&self) -> (i32, i32, i32, i32) {
         let mut rect: RECT = Default::default();
         unsafe { GetClientRect(self.wnd_handle, &mut rect).unwrap() };
         (rect.left, rect.top, rect.right, rect.bottom)
     }
+
+    pub fn get_cursor_pos(&self) -> (i32, i32) {
+        let mut point: POINT = Default::default();
+        unsafe { GetCursorPos(&mut point).unwrap() };
+        (point.x, point.y)
+    }
+
+    pub fn get_client_cursor_pos(&self) -> (i32, i32) {
+        let mut point: POINT = Default::default();
+        unsafe { 
+            GetCursorPos(&mut point).unwrap();
+            // ScreenToClient(&self.wnd_handle, &mut point);
+        }
+        (point.x, point.y)
+    }
+
+    // Getting mouse pos
+    // let mut point: POINT;
+    // GetCursorPos(&point);
+    // ScreenToClient(wnd_handle, &point);
+    // point.x and point.y
 
     pub fn visible(&self) -> bool { 
         unsafe { IsWindowVisible(self.wnd_handle).as_bool() } 
