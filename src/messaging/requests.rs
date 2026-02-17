@@ -1,0 +1,27 @@
+use std::sync::mpsc::Sender;
+
+// @args indicates the argument types (if any)
+// @rtrn indicates the return types (in a Sender)
+pub enum WndRequest {
+    // Getters
+    GetWndPos { rtrn: Sender<(i32, i32)> },
+    GetWndSize { rtrn: Sender<(i32, i32)> },
+    GetWndPosAndSize { rtrn: Sender<(i32, i32, i32, i32)> },
+
+    GetCursorPos { rtrn: Sender<(i32, i32)> },
+    GetCursorClientPos { rtrn: Sender<(i32, i32)> },
+
+    IsVisible { rtrn: Sender<bool> },
+    IsFocused { rtrn: Sender<bool> },
+
+    // Setters
+    SetWndPos { args: (i32, i32), rtrn: Sender<()> },
+    SetWndSize { args: (i32, i32), rtrn: Sender<()> },
+    SetWndPosAndSize { args: (i32, i32, i32, i32), rtrn: Sender<()> },
+
+    SetVisibility { args: bool, rtrn: Sender<()> },
+    Minimize { rtrn: Sender<()> },
+    Maximize { rtrn: Sender<()> },
+
+    Close { rtrn: Sender<()> },
+}

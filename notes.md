@@ -39,6 +39,7 @@
  - Properly document your code (using actually doucmentation)
     // TODO: Think about how much more efficent it would be to use https://crates.io/crates/phf for getting key code
  - Adding proper derives to structs and enums (https://stackoverflow.com/questions/58044095/what-traits-should-simple-enums-in-rust-derive)
+   https://rust-lang.github.io/api-guidelines/interoperability.html
 
 ## Credits
  - A lot of the information about how to use the WinAPI to create windows is from https://www.youtube.com/@lowlevelgamedev9330
