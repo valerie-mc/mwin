@@ -1,30 +1,47 @@
 use bitflags::bitflags;
 
-// TODO: Should probably make a struct for positions (ig)
-// TODO: Think about if you want to rename this to WndEvent (your fns are already named that way)
-
+#[derive(Debug)]
 pub enum WndEvent {
     KeyboardInput { event: KeyEvent },
+
     MouseInput { event: MouseEvent },
-    CursorMoved { },
-    
-    WindowMoved,
-    WindowResized,
-    WindowMinimzed,
-    WindowMaximized,
+    MouseScrolled { event: ScrollEvent },
+    CursorMoved { event: CursorEvent },
+
+    WindowMoved { x: i32, y: i32 },
+    WindowResized { width: i32, height: i32 },
+    WindowMinimized,
+    WindowMaximized { width: i32, height: i32 },
+    WindowFocused,
+    WindowUnfocused,
     WindowClosed,
     WindowDestroyed,
 }
 
+#[derive(Debug)]
 pub struct KeyEvent {
     pub key: KeyCode,
     pub state: KeyState,
     pub modifiers: Modifiers,
 }
 
+#[derive(Debug)]
 pub struct MouseEvent {
     pub key: KeyCode,
     pub state: KeyState,
+    pub modifiers: Modifiers,
+    pub position: (i32, i32),
+}
+
+#[derive(Debug)]
+pub struct ScrollEvent {
+    pub modifiers: Modifiers,
+    pub position: (i32, i32),
+    pub direction: ScrollDirection,
+}
+
+#[derive(Debug)]
+pub struct CursorEvent {
     pub modifiers: Modifiers,
     pub position: (i32, i32),
 }
@@ -50,8 +67,14 @@ pub enum KeyState {
     Released
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ScrollDirection {
+    Up,
+    Down
+}
 
 bitflags! {
+    #[derive(Debug)]
     pub struct Modifiers: u8 {
         const SHIFT = 1 << 0;
         const CTRL  = 1 << 1;

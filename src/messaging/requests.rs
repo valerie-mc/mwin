@@ -6,10 +6,10 @@ pub enum WndRequest {
     // Getters
     GetWndPos { rtrn: Sender<(i32, i32)> },
     GetWndSize { rtrn: Sender<(i32, i32)> },
-    GetWndPosAndSize { rtrn: Sender<(i32, i32, i32, i32)> },
 
     GetCursorPos { rtrn: Sender<(i32, i32)> },
     GetCursorClientPos { rtrn: Sender<(i32, i32)> },
+    IsMouseCaptured { rtrn: Sender<bool> },
 
     IsVisible { rtrn: Sender<bool> },
     IsFocused { rtrn: Sender<bool> },
@@ -18,6 +18,9 @@ pub enum WndRequest {
     SetWndPos { args: (i32, i32), rtrn: Sender<()> },
     SetWndSize { args: (i32, i32), rtrn: Sender<()> },
     SetWndPosAndSize { args: (i32, i32, i32, i32), rtrn: Sender<()> },
+
+    CaptureMouse { rtrn: Sender<()> },
+    ReleaseMouse { rtrn: Sender<()> },
 
     SetVisibility { args: bool, rtrn: Sender<()> },
     Minimize { rtrn: Sender<()> },

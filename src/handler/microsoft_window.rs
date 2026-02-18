@@ -2,8 +2,15 @@ use std::sync::mpsc::{Sender, Receiver};
 use windows::Win32::{
     Foundation::*,
     Graphics::Gdi::ScreenToClient,
-    System::LibraryLoader::GetModuleHandleW,
-    UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
+    System::{
+        LibraryLoader::GetModuleHandleW,
+        SystemServices,
+    },
+    UI::{
+        Input::KeyboardAndMouse::*, 
+        Shell::*,
+        WindowsAndMessaging::*
+    },
 };
 use windows_strings::{w, HSTRING, PCWSTR};
 
@@ -13,54 +20,48 @@ use crate::{
 };
 
 
-pub struct WindowMC {
-    evt_sender: Sender<WndEvent>,
+pub struct MSWindow {
     req_receiver: Receiver<WndRequest>,
+    _subclass: Box<MSWindowSubclass>,
     handle: HWND,
     running: bool,
 }
 
-impl WindowMC {
+impl MSWindow {
+    // * Helper functions specific to using the windows api
+
+    // Returns the low order word of the lparam
     #[inline]
-    fn send_event(&self, wnd_event: WndEvent) {
-        self.evt_sender.send(wnd_event).unwrap();
+    fn lp_lo_word(lparam: LPARAM) -> i16 {
+        (lparam.0 & 0xFFFF) as i16 
     }
 
-    fn handle_window_messages(&self, &msg: &MSG) {
-        // Checking for messages here bc the WndProc function can't access this struct's data
-        match msg.message {
-            // Keyboard input
-            WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => 
-                self.handle_keyboard_input(&msg),
-
-            // Mouse input
-            // TODO
-
-            // Changes to window state
-            WM_MOVE | WM_MOVING => self.send_event(WndEvent::WindowMoved),
-            WM_SIZING => self.send_event(WndEvent::WindowResized),
-            WM_SIZE => match msg.wParam.0 as u32 {
-                SIZE_RESTORED  => self.send_event(WndEvent::WindowResized),
-                SIZE_MINIMIZED => self.send_event(WndEvent::WindowMinimzed),
-                SIZE_MAXIMIZED => self.send_event(WndEvent::WindowMaximized),
-                _ => (),
-            }
-            WM_CLOSE   => self.send_event(WndEvent::WindowClosed),
-            WM_DESTROY => self.send_event(WndEvent::WindowDestroyed),
-            _ => (),
-        }
-
-        // TODO: Learn how to draw pixels to the window
-        // case WM_PAINT: 
+    // Returns the high order word of the lparam
+    #[inline]
+    fn lp_hi_word(lparam: LPARAM) -> i16 {
+        // The lparam is considered 32 bits on Win32 so we don't need to worry if the isize is 64 bits
+        ((lparam.0 >> 16) & 0xFFFF) as i16
     }
 
-    // TODO: Still can't detect just alt or F10
-    // TODO: Also can't detect mouse button inputs
-    fn handle_keyboard_input(&self, msg: &MSG) {
-        // * Get event information
-        // Get key code
-        let vk_code = VIRTUAL_KEY((msg.wParam.0 & 0xFFFF) as u16); // The last 16 bits of the wParam are the vkCode
-        let key: KeyCode = match vk_code {
+    // Returns the low order word of the wparam
+    #[inline]
+    fn wp_lo_word(wparam: WPARAM) -> u16 {
+        (wparam.0 & 0xFFFF) as u16
+    }
+
+    // Returns the high order word of the wparam
+    #[inline]
+    fn wp_hi_word(wparam: WPARAM) -> u16 {
+        // The wparam is considered 32 bits on Win32 so we don't need to worry if the usize is 64 bits
+        ((wparam.0 >> 16) & 0xFFFF) as u16
+    }
+
+    // Returns the key code from wparam
+    #[inline]
+    fn get_key_code(wparam: WPARAM) -> Option<KeyCode> {
+        let vk_code = VIRTUAL_KEY(MSWindow::wp_lo_word(wparam)); // The last 16 bits of the wParam are the vkCode
+
+        let key = match vk_code {
             // See `https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes`
             // for all window vk_codes.
             // For readablity, I stack match statements but try to keep the line length < 120.
@@ -118,80 +119,84 @@ impl WindowMC {
             VK_XBUTTON1 => KeyCode::XMouse1, VK_XBUTTON2 => KeyCode::XMouse2,
 
             // Unmapped keys (returns early, aka. does nothing)
-            _ => return,
+            _ => return None,
         };
 
-        // Get state
-        let state: KeyState = match msg.message {
-            WM_KEYDOWN | WM_SYSKEYUP => KeyState::Pressed,
-            WM_KEYUP  | WM_SYSKEYDOWN => KeyState::Released,
-            _ => return, // Should never happen, but will safely return early
-        };
+        Some(key)
+    }
 
-        // Get modifiers
+    #[inline]
+    fn get_mouse_modifiers(wparam: WPARAM) -> Modifiers {
         let mut modifiers: Modifiers = Modifiers::empty();
 
-        if unsafe { GetAsyncKeyState(VK_SHIFT.0 as i32) } != 0 {
+        if wparam.0 as u32 & SystemServices::MK_SHIFT.0 != 0 {
             modifiers.insert(Modifiers::SHIFT);
         }
-        if unsafe { GetAsyncKeyState(VK_CONTROL.0 as i32) } != 0 {
+        if wparam.0 as u32 & SystemServices::MK_CONTROL.0 != 0 {
             modifiers.insert(Modifiers::CTRL);
         }
-
-        let key_flags = ((msg.lParam.0 >> 16) & 0xFFFF) as u32; // The first 16 bits of the lParam are the key flags
-        if key_flags & KF_ALTDOWN != 0 {
+        if unsafe { GetAsyncKeyState(VK_MENU.0 as i32) } != 0 {
             modifiers.insert(Modifiers::ALT);
         }
 
-        // * Create and send event
-        self.send_event(WndEvent::KeyboardInput { 
-            event: KeyEvent {
-                key,
-                state,
-                modifiers,
-            } 
-        });
+        modifiers
+    }
+
+    #[inline]
+    fn get_mouse_position(lparam: LPARAM) -> (i32, i32) {
+        let x = MSWindow::lp_lo_word(lparam) as i32;
+        let y = MSWindow::lp_hi_word(lparam) as i32;
+        (x, y)
     }
 }
 
-impl Window for WindowMC {
+impl Window for MSWindow {
     fn new(title: String, evt_sender: Sender<WndEvent>, req_receiver: Receiver<WndRequest>) -> Self {
-        unsafe { 
-            // Initalizes window settings
-            let wnd_class = WNDCLASSW {
-                style: CS_HREDRAW | CS_VREDRAW,          // Refresh window on resize
-                lpfnWndProc: Some(DefWindowProcWExtern), // Function to process window messages
-                hInstance: GetModuleHandleW(PCWSTR::null()).unwrap_or_default().into(), // Program instance handle
-                hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),              // Cursor for the window
-                lpszClassName: w!("WindowClass"),
-                ..Default::default()
-            };
+        // Initalizes window settings
+        let wnd_class = unsafe { WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,          // Refresh window on resize
+            lpfnWndProc: Some(wnd_proc), // Function to process window messages
+            hInstance: GetModuleHandleW(PCWSTR::null()).unwrap_or_default().into(), // Program instance handle
+            hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),              // Cursor for the window
+            lpszClassName: w!("WindowClass"),
+            ..Default::default()
+        } };
 
-            // Registers settings with window, returns zero if the function fails
-            if RegisterClassW(&wnd_class) == 0 {
-                // TODO: Deal with this panic, idk what to do with it rn
-                panic!();
-            }
+        // Registers settings with window, returns zero if the function fails
+        if unsafe { RegisterClassW(&wnd_class) == 0 } {
+            // TODO: Deal with this panic, idk what to do with it rn
+            panic!();
+        }
 
-            // Creates window
-            let handle = CreateWindowExW(
-                WINDOW_EX_STYLE(0),                // No extended window styles  
-                wnd_class.lpszClassName,           // Class name
-                &HSTRING::from(title),             // Window title
-                WS_OVERLAPPEDWINDOW | WS_VISIBLE,  // Default window
-                CW_USEDEFAULT,                     // x (position)
-                CW_USEDEFAULT,                     // y (position)
-                500,                     // Width // TODO: RETURN BACK TO USEDEFAULT
-                500,                     // Height // TODO: RETURN BACK TO USEDEFAULT
-                None, None, Some(wnd_class.hInstance), None // Other settings
-            ).unwrap_or_default();
+        // Create window
+        let handle = unsafe { CreateWindowExW(
+            WINDOW_EX_STYLE(0),                // No extended window styles  
+            wnd_class.lpszClassName,           // Class name
+            &HSTRING::from(title),             // Window title
+            WS_OVERLAPPEDWINDOW | WS_VISIBLE,  // Default window
+            CW_USEDEFAULT,                     // x (position)
+            CW_USEDEFAULT,                     // y (position)
+            500,                     // Width // TODO: RETURN BACK TO USEDEFAULT
+            500,                     // Height // TODO: RETURN BACK TO USEDEFAULT
+            None, None, Some(wnd_class.hInstance), None // Other settings
+        ).unwrap_or_default() };
 
-            WindowMC {
-                evt_sender,
-                req_receiver,
-                handle,
-                running: true,
-            }
+        // Create subclass (dropped when MSWindow is dropped)
+        let subclass_box = Box::new(MSWindowSubclass {
+            evt_sender,
+        });
+
+        // Raw pointer to the boxed heap value
+        let subclass_ptr = (&*subclass_box) as *const MSWindowSubclass as usize;
+
+        // Register subclass with id an of 1
+        unsafe { let _ = SetWindowSubclass(handle, Some(wnd_subclass_proc), 1, subclass_ptr); }
+
+        MSWindow {
+            req_receiver,
+            _subclass: subclass_box,
+            handle,
+            running: true,
         }
     }
 
@@ -200,12 +205,9 @@ impl Window for WindowMC {
             while self.running {
                 // Message from Microsoft
                 let mut msg: MSG = Default::default();
-                // Returns a negative number if it fails (note, most message go directly to the callback)
                 while PeekMessageW(&mut msg, Some(self.handle), 0, 0, PM_REMOVE).as_bool() {
-                    TranslateMessage(&mut msg).as_bool(); // Converts keyboard messages into a WM_CHAR message
-                    DispatchMessageW(&mut msg); // Calls our window callback
-
-                    self.handle_window_messages(&msg);
+                    let _ = TranslateMessage(&mut msg); // Converts keyboard messages into a WM_CHAR message
+                    DispatchMessageW(&mut msg);
                 }
 
                 // Request from handler
@@ -217,23 +219,18 @@ impl Window for WindowMC {
     }
 
     // * Getters * //
-    // Top left corner x, y, width, height
+    // Top left corner x, y
+    // Includes non-client area
     fn get_wnd_pos(&self) -> (i32, i32) {
         let mut rect: RECT = Default::default();
-        unsafe { GetClientRect(self.handle, &mut rect).unwrap(); }
+        unsafe { GetWindowRect(self.handle, &mut rect).unwrap(); }
         (rect.left, rect.top)
-
-        // TODO: What about GetWindowRect()
     }
     fn get_wnd_size(&self) -> (i32, i32) {
         let mut rect: RECT = Default::default();
         unsafe { GetClientRect(self.handle, &mut rect).unwrap(); }
-        (rect.right - rect.left, rect.bottom - rect.top)
-    }
-    fn get_wnd_pos_and_size(&self) -> (i32, i32, i32, i32) {
-        let mut rect: RECT = Default::default();
-        unsafe { GetClientRect(self.handle, &mut rect).unwrap(); }
-        (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
+        println!("{:?}", (rect.left, rect.top, rect.right, rect.bottom));
+        (rect.right, rect.bottom)
     }
 
     fn get_cursor_pos(&self) -> (i32, i32) {
@@ -249,12 +246,15 @@ impl Window for WindowMC {
         }
         (point.x, point.y)
     }
+    fn is_mouse_captured(&self) -> bool {
+        unsafe { GetCapture() == self.handle }
+    }
 
     fn is_visible(&self) -> bool { 
         unsafe { IsWindowVisible(self.handle).as_bool() } 
     }
     fn is_focused(&self) -> bool { 
-        unsafe { GetFocus()  == self.handle }
+        unsafe { GetFocus() == self.handle }
     }
     
     // * Setters * //
@@ -271,6 +271,14 @@ impl Window for WindowMC {
         unsafe { let _ = SetWindowPos(self.handle, None, x, y, width, height, SET_WINDOW_POS_FLAGS(0)); }
     }
 
+    // TODO: This doesn't really seem to do anything
+    fn capture_mouse(&self) {
+        unsafe { let _ = SetCapture(self.handle); }
+    }
+    fn release_mouse(&self) {
+        unsafe { let _ = ReleaseCapture(); }
+    }
+
     fn set_visibility(&self, visible: bool) {
         if visible {
             unsafe { let _ = ShowWindow(self.handle, SW_SHOW); }
@@ -285,27 +293,182 @@ impl Window for WindowMC {
         unsafe { let _ = ShowWindow(self.handle, SW_MAXIMIZE); }
     }
     fn close(&mut self) {
-        // This only minimizes window, it doesn't destroy it
-        // unsafe { CloseWindow(self.handle).unwrap() };
-        unsafe { DestroyWindow(self.handle).unwrap(); }
-        // self.running = false; // TODO: Actually don't do this here, do this in the handle event function
-        // TODO: Could have it set all values in events to false.
-        // TODO: This would prevent the user from interpreting input when the window is destroyed.
+        unsafe { PostMessageW(Some(self.handle), WM_CLOSE, WPARAM(0), LPARAM(0)).unwrap() }
     }
 }
 
 // Closes window when dropped
-impl Drop for WindowMC {
+impl Drop for MSWindow {
     fn drop(&mut self) {
         self.close();
     }
 }
 
-
-#[allow(non_snake_case)]
-#[allow(unused)]
-#[inline(always)]
-// Only used to satisfy type requirement for `lpfnWndProc`
-unsafe extern "system" fn DefWindowProcWExtern(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+#[inline]
+unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+}
+
+
+// Handles the subclass proc function which sends events to the main thread
+struct MSWindowSubclass {
+    evt_sender: Sender<WndEvent>,
+}
+
+impl MSWindowSubclass {
+    #[inline]
+    fn send_event(&self, wnd_event: WndEvent) {
+        self.evt_sender.send(wnd_event).unwrap();
+    }
+
+    fn handle_keyboard_input(&self, msg: u32, wparam: WPARAM, lparam: LPARAM) {
+        // * Get event information
+        // Get key code
+        let Some(key) = MSWindow::get_key_code(wparam) else {
+            return
+        };
+
+        // Get state
+        let state: KeyState = match msg {
+            WM_KEYDOWN | WM_SYSKEYDOWN => KeyState::Pressed,
+            WM_KEYUP | WM_SYSKEYUP => KeyState::Released,
+            _ => return, // Should never happen, but will safely return early
+        };
+
+        // Get modifiers
+        let mut modifiers: Modifiers = Modifiers::empty();
+
+        if unsafe { GetAsyncKeyState(VK_SHIFT.0 as i32) } != 0 {
+            modifiers.insert(Modifiers::SHIFT);
+        }
+        if unsafe { GetAsyncKeyState(VK_CONTROL.0 as i32) } != 0 {
+            modifiers.insert(Modifiers::CTRL);
+        }
+
+        let key_flags = ((lparam.0 >> 16) & 0xFFFF) as u32; // The first 16 bits of the lParam are the key flags
+        if key_flags & KF_ALTDOWN != 0 {
+            modifiers.insert(Modifiers::ALT);
+        }
+
+        // * Create and send event
+        self.send_event(WndEvent::KeyboardInput { 
+            event: KeyEvent {
+                key,
+                state,
+                modifiers,
+            } 
+        });
+    }
+
+    // Set key and state to None if handling a cursor move
+    fn handle_mouse_input(&self, key: KeyCode, state: KeyState, wparam: WPARAM, lparam: LPARAM) {
+        self.send_event(WndEvent::MouseInput { 
+            event: MouseEvent {
+                key,
+                state,
+                modifiers: MSWindow::get_mouse_modifiers(wparam),
+                position: MSWindow::get_mouse_position(lparam),
+            } 
+        });
+    }
+
+    fn handle_scroll(&self, wparam: WPARAM, lparam: LPARAM) {
+        let direction = if MSWindow::wp_hi_word(wparam) as i16 > 0 {
+            ScrollDirection::Up
+        } else {
+            ScrollDirection::Down
+        };
+
+        self.send_event(WndEvent::MouseScrolled { 
+            event: ScrollEvent {
+                modifiers: MSWindow::get_mouse_modifiers(wparam),
+                position: MSWindow::get_mouse_position(lparam),
+                direction,
+            } 
+        });
+    }
+
+    fn handle_cursor_move(&self, wparam: WPARAM, lparam: LPARAM) {
+        self.send_event(WndEvent::CursorMoved { 
+            event: CursorEvent {
+                modifiers: MSWindow::get_mouse_modifiers(wparam),
+                position: MSWindow::get_mouse_position(lparam),
+            } 
+        });
+    }
+}
+
+unsafe extern "system" fn wnd_subclass_proc(
+    hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, id: usize, dw_ref_data: usize
+) -> LRESULT {
+    // Convert dw_ref_data to subclass pointer
+    let subclass = unsafe { 
+        (dw_ref_data as *mut MSWindowSubclass).as_mut().expect("null dw_ref_data") 
+    };
+
+    let lo_word = MSWindow::lp_lo_word(lparam) as i32;
+    let hi_word = MSWindow::lp_hi_word(lparam) as i32;
+
+    match msg {
+        // Keyboard input
+        WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP => 
+            subclass.handle_keyboard_input(msg, wparam, lparam),
+
+        // Mouse input
+        WM_LBUTTONDOWN => subclass.handle_mouse_input(KeyCode::LeftMouse, KeyState::Pressed, wparam, lparam),
+        WM_LBUTTONUP => subclass.handle_mouse_input(KeyCode::LeftMouse, KeyState::Released, wparam, lparam),
+        WM_MBUTTONDOWN => subclass.handle_mouse_input(KeyCode::MiddleMouse, KeyState::Pressed, wparam, lparam),
+        WM_MBUTTONUP => subclass.handle_mouse_input(KeyCode::MiddleMouse, KeyState::Released, wparam, lparam),
+        WM_RBUTTONDOWN => subclass.handle_mouse_input(KeyCode::RightMouse, KeyState::Pressed, wparam, lparam),
+        WM_RBUTTONUP => subclass.handle_mouse_input(KeyCode::RightMouse, KeyState::Released, wparam, lparam),
+        WM_XBUTTONDOWN => {
+            if MSWindow::wp_hi_word(wparam) == XBUTTON1 {
+                subclass.handle_mouse_input(KeyCode::XMouse1, KeyState::Pressed, wparam, lparam)
+            } else {
+                subclass.handle_mouse_input(KeyCode::XMouse2, KeyState::Pressed, wparam, lparam)
+            }
+        }
+        WM_XBUTTONUP => {
+            if MSWindow::wp_hi_word(wparam) == XBUTTON1 {
+                subclass.handle_mouse_input(KeyCode::XMouse1, KeyState::Released, wparam, lparam)
+            } else {
+                subclass.handle_mouse_input(KeyCode::XMouse2, KeyState::Released, wparam, lparam)
+            }
+        }
+
+        WM_MOUSEWHEEL | WM_MOUSEHWHEEL => subclass.handle_scroll(wparam, lparam),
+
+        WM_MOUSEMOVE => subclass.handle_cursor_move( wparam, lparam),
+
+        // Changes to window state
+        WM_MOVE => subclass.send_event(WndEvent::WindowMoved { x: lo_word, y: hi_word }),
+        WM_SIZE => match wparam.0 as u32 {
+            SIZE_RESTORED  => subclass.send_event(WndEvent::WindowResized { width: lo_word, height: hi_word }),
+            SIZE_MINIMIZED => subclass.send_event(WndEvent::WindowMinimized),
+            SIZE_MAXIMIZED => subclass.send_event(WndEvent::WindowMaximized { width: lo_word, height: hi_word }),
+            _ => (),
+        }
+        WM_ACTIVATE => {
+            let wp_lo_word = MSWindow::wp_lo_word(wparam) as u32;
+            if wp_lo_word == WA_INACTIVE {
+                subclass.send_event(WndEvent::WindowUnfocused)
+            } else {
+                subclass.send_event(WndEvent::WindowFocused)
+            }
+        }
+        WM_CLOSE   => subclass.send_event(WndEvent::WindowClosed),
+        WM_DESTROY => subclass.send_event(WndEvent::WindowDestroyed),
+
+        // Remove subclass on destroy
+        WM_NCDESTROY => {
+            unsafe { let _ = RemoveWindowSubclass(hwnd, Some(wnd_subclass_proc), id); }
+        }
+
+        _ => (),
+    }
+
+    // TODO: Learn how to draw pixels to the window
+    // case WM_PAINT: 
+
+    unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
 }

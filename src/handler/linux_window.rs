@@ -2,13 +2,13 @@
 
 // use crate::window_handler::{Window, Message};
 
-// pub struct WindowLinux {
+// pub struct LinuxWindow {
 //     receiver: mpsc::Receiver<Message>,
 // }
 
-// impl WindowLinux {
+// impl LinuxWindow {
 //     pub fn new(title: String, receiver: mpsc::Receiver<Message>) -> Self {
-//         WindowLinux {
+//         LinuxWindow {
 //             receiver,
 //         }
 //     }
@@ -23,7 +23,7 @@
 //     }
 // }
 
-// impl Window for WindowLinux {
+// impl Window for LinuxWindow {
 //     fn get_wnd_pos(&self) -> (i32, i32) {
 //         todo!()
 //     }
@@ -81,7 +81,7 @@
 //     }
 // }
 
-// impl Drop for WindowLinux {
+// impl Drop for LinuxWindow {
 //     fn drop(&mut self) {
 //         self.close();
 //     }

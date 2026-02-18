@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     errors::*,
-    handler::{microsoft_window::WindowMC, window_trait::Window},
+    handler::{microsoft_window::MSWindow, window_trait::Window},
     messaging::{events::*, requests::*}
 };
 
@@ -21,14 +21,14 @@ pub struct WindowHandler {
 }
 
 impl WindowHandler {
-    pub fn new(window_title: &str) -> Result<Self, WindowError> {
-        let title = window_title.to_string();
+    pub fn new(title: &str) -> Result<Self, WindowError> {
+        let title = title.to_string();
 
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
         match std::env::consts::OS {
-            "windows" => thread::spawn(move || { WindowMC::new(title, evt_sender, req_receiver).run() }),
+            "windows" => thread::spawn(move || { MSWindow::new(title, evt_sender, req_receiver).run() }),
             // "linux" => thread::spawn(move || { WindowLinux::new(title, req_receiver).run() }),
             _ => return Err(WindowError::ERROR_UNSUPPORTED_OS),
         };
@@ -46,7 +46,6 @@ impl WindowHandler {
         recv.recv().unwrap()
     }
 
-
     // * Events * //
     fn poll_window_events(&mut self) {
         for wnd_event in self.evt_receiver.try_iter() {
@@ -58,7 +57,6 @@ impl WindowHandler {
         self.poll_window_events();
         self.window_events.pop_front()
     }
-
     pub fn wnd_event_iter(&mut self) -> Iter<'_, WndEvent> {
         self.poll_window_events();
         self.window_events.iter()
@@ -77,13 +75,6 @@ impl WindowHandler {
         let req = WndRequest::GetWndSize { rtrn };
         self.send_request(req, recv)
     }
-    // Top left corner x, y, width, height
-    // TODO: Should I keep this? idk
-    pub fn get_wnd_pos_and_size(&self) -> (i32, i32, i32, i32) {
-        let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::GetWndPosAndSize { rtrn };
-        self.send_request(req, recv)
-    }
 
     pub fn get_cursor_pos(&self) -> (i32, i32) {
         let (rtrn, recv) = mpsc::channel();
@@ -93,6 +84,11 @@ impl WindowHandler {
     pub fn get_cursor_client_pos(&self) -> (i32, i32) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::GetCursorClientPos { rtrn };
+        self.send_request(req, recv)
+    }
+    pub fn is_mouse_captured(&self) -> bool {
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::IsMouseCaptured { rtrn };
         self.send_request(req, recv)
     }
 
@@ -113,16 +109,25 @@ impl WindowHandler {
         let req = WndRequest::SetWndPos { args: (x, y), rtrn };
         self.send_request(req, recv)
     }
-
     pub fn set_wnd_size(&self, width: i32, height: i32) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetWndSize { args: (width, height), rtrn };
         self.send_request(req, recv)
     }
-
     pub fn set_wnd_pos_and_size(&self, x: i32, y: i32, width: i32, height: i32) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetWndPosAndSize { args: (x, y, width, height), rtrn };
+        self.send_request(req, recv)
+    }
+
+    pub fn capture_mouse(&self) {
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::CaptureMouse { rtrn };
+        self.send_request(req, recv)
+    }
+    pub fn release_mouse(&self) {
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::ReleaseMouse { rtrn };
         self.send_request(req, recv)
     }
 
@@ -131,19 +136,16 @@ impl WindowHandler {
         let req = WndRequest::SetVisibility { args: visible, rtrn };
         self.send_request(req, recv)
     }
-
     pub fn minimize(&self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Minimize { rtrn };
         self.send_request(req, recv)
     }
-
     pub fn maximize(&self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Maximize { rtrn };
         self.send_request(req, recv)
     }
-
     pub fn close(&mut self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Close { rtrn };
