@@ -12,7 +12,7 @@ use windows::Win32::{
         WindowsAndMessaging::*
     },
 };
-use windows_strings::{w, HSTRING, PCWSTR};
+use windows_strings::{HSTRING, PCWSTR};
 
 use crate::{
     messaging::{events::*, requests::*},
@@ -151,20 +151,25 @@ impl MSWindow {
 }
 
 impl Window for MSWindow {
-    fn new(title: String, evt_sender: Sender<WndEvent>, req_receiver: Receiver<WndRequest>) -> Self {
+    fn new(title: String, id: usize, evt_sender: Sender<WndEvent>, req_receiver: Receiver<WndRequest>) -> Self {
+        let class_name: String = "mwin".to_string() + &id.to_string();
+
         // Initalizes window settings
         let wnd_class = unsafe { WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,          // Refresh window on resize
             lpfnWndProc: Some(wnd_proc), // Function to process window messages
             hInstance: GetModuleHandleW(PCWSTR::null()).unwrap_or_default().into(), // Program instance handle
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),              // Cursor for the window
-            lpszClassName: w!("WindowClass"),
+            lpszClassName: PCWSTR(class_name.as_ptr() as *mut u16),
             ..Default::default()
         } };
+
 
         // Registers settings with window, returns zero if the function fails
         if unsafe { RegisterClassW(&wnd_class) == 0 } {
             // TODO: Deal with this panic, idk what to do with it rn
+            println!("registering failed");
+            unsafe { println!("{:?}", GetLastError()); }
             panic!();
         }
 
@@ -293,7 +298,7 @@ impl Window for MSWindow {
         unsafe { let _ = ShowWindow(self.handle, SW_MAXIMIZE); }
     }
     fn close(&mut self) {
-        unsafe { PostMessageW(Some(self.handle), WM_CLOSE, WPARAM(0), LPARAM(0)).unwrap() }
+        unsafe { let _ = PostMessageW(Some(self.handle), WM_CLOSE, WPARAM(0), LPARAM(0)); }
     }
 }
 

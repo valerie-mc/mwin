@@ -6,7 +6,7 @@ use crate::messaging::{events::WndEvent, requests::WndRequest};
 // TODO: Documentation of what this is
 
 pub trait Window {
-    fn new(title: String, evt_sender: Sender<WndEvent>, req_receiver: Receiver<WndRequest>) -> Self;
+    fn new(title: String, id: usize, evt_sender: Sender<WndEvent>, req_receiver: Receiver<WndRequest>) -> Self;
     /// This is an example of what a default run function would do
     /// while let Ok(req) = self.receiver.try_recv() {
     ///     self.handle_message(req);

@@ -3,7 +3,12 @@ mod microsoft_window;
 mod linux_window;
 
 use std::{
-    collections::vec_deque::{VecDeque, Iter}, sync::mpsc::{self, Receiver, Sender}, thread
+    collections::vec_deque::{VecDeque, Iter},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        atomic::{AtomicUsize, Ordering},
+    },
+    thread
 };
 
 use crate::{
@@ -24,11 +29,14 @@ impl WindowHandler {
     pub fn new(title: &str) -> Result<Self, WindowError> {
         let title = title.to_string();
 
+        static ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
+        let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
         match std::env::consts::OS {
-            "windows" => thread::spawn(move || { MSWindow::new(title, evt_sender, req_receiver).run() }),
+            "windows" => thread::spawn(move || { MSWindow::new(title, id, evt_sender, req_receiver).run() }),
             // "linux" => thread::spawn(move || { WindowLinux::new(title, req_receiver).run() }),
             _ => return Err(WindowError::ERROR_UNSUPPORTED_OS),
         };
@@ -43,7 +51,7 @@ impl WindowHandler {
     #[inline]
     fn send_request<T>(&self, req: WndRequest, recv: Receiver<T>) -> T {
         let _ = self.req_sender.send(req);
-        recv.recv().unwrap()
+        recv.recv().unwrap() // If the sender is dropped, this returns an error, do I have to make all of these a result/option now?
     }
 
     // * Events * //
