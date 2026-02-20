@@ -4,8 +4,8 @@ use std::sync::mpsc::Sender;
 // @rtrn indicates the return types (in a Sender)
 pub enum WndRequest {
     // Getters
-    GetWndPos { rtrn: Sender<(i32, i32)> },
-    GetWndSize { rtrn: Sender<(i32, i32)> },
+    GetWndRect { rtrn: Sender<(i32, i32, i32, i32)> },
+    GetClientRect { rtrn: Sender<(i32, i32, i32, i32)> },
 
     GetCursorPos { rtrn: Sender<(i32, i32)> },
     GetCursorClientPos { rtrn: Sender<(i32, i32)> },

@@ -7,17 +7,27 @@ use crate::{handler::*}; // messaging::events::*
 use std::thread;
 use std::time;
 
+const WND_COUNT: i32 = 1000;
+
+const W: i32 = 100;
+const H: i32 = 100;
+
+const X: i32 = 2560;
+
 fn main() {
-    let mut wnd_1 = WindowHandler::new("My Window 1").unwrap();
+    let mut wnds: Vec<WindowHandler> = Vec::with_capacity(WND_COUNT as usize);
 
-    thread::sleep(time::Duration::from_secs(5));
+    // let wnd = WindowHandler::new("Window", 500, 500).unwrap();
+    // thread::sleep(time::Duration::from_secs(3));
 
-    println!("making second window");
-    let mut wnd_2 = WindowHandler::new("My Window 2").unwrap();
-    
-    thread::sleep(time::Duration::from_secs(5));
-    println!("closing window 1");
-    wnd_1.close();
-    thread::sleep(time::Duration::from_secs(5));
-    wnd_2.close();
+    for i in 0..WND_COUNT {
+        let x_pos: i32 = (i*W) % X;
+        let y_pos: i32 = (i*W) / X * H;
+        
+        let wnd = WindowHandler::new(&i.to_string(), x_pos, y_pos, W, H).unwrap();
+        wnds.push(wnd);
+        // thread::sleep(time::Duration::from_millis(1));
+    }
+    println!("Created windows!");
+    thread::sleep(time::Duration::from_secs(25));
 }

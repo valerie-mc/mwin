@@ -6,7 +6,16 @@ use crate::messaging::{events::WndEvent, requests::WndRequest};
 // TODO: Documentation of what this is
 
 pub trait Window {
-    fn new(title: String, id: usize, evt_sender: Sender<WndEvent>, req_receiver: Receiver<WndRequest>) -> Self;
+    fn new(
+        title: String,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        id: usize,
+        evt_sender: Sender<WndEvent>,
+        req_receiver: Receiver<WndRequest>
+    ) -> Self;
     /// This is an example of what a default run function would do
     /// while let Ok(req) = self.receiver.try_recv() {
     ///     self.handle_message(req);
@@ -15,8 +24,8 @@ pub trait Window {
     fn handle_request(&mut self, req: WndRequest) {
         match req {
             // Getters
-            WndRequest::GetWndPos { rtrn } => { let _ = rtrn.send(self.get_wnd_pos()); }
-            WndRequest::GetWndSize { rtrn } => { let _ = rtrn.send(self.get_wnd_size()); }
+            WndRequest::GetWndRect { rtrn } => { let _ = rtrn.send(self.get_wnd_rect()); }            
+            WndRequest::GetClientRect { rtrn } => { let _ = rtrn.send(self.get_client_rect()); }     
 
             WndRequest::GetCursorPos { rtrn } => { let _ = rtrn.send(self.get_cursor_pos()); }
             WndRequest::GetCursorClientPos { rtrn } => { let _ = rtrn.send(self.get_cursor_client_pos()); }
@@ -42,8 +51,8 @@ pub trait Window {
     }
 
     // * Getters * //
-    fn get_wnd_pos(&self) -> (i32, i32);
-    fn get_wnd_size(&self) -> (i32, i32);
+    fn get_wnd_rect(&self) -> (i32, i32, i32, i32);
+    fn get_client_rect(&self) -> (i32, i32, i32, i32);
 
     fn get_cursor_pos(&self) -> (i32, i32);
     fn get_cursor_client_pos(&self) -> (i32, i32);
@@ -64,5 +73,5 @@ pub trait Window {
     fn set_visibility(&self, visible: bool);
     fn minimize(&self);
     fn maximize(&self);
-    fn close(&mut self);
+    fn close(&self);
 }

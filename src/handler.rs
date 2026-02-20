@@ -26,7 +26,7 @@ pub struct WindowHandler {
 }
 
 impl WindowHandler {
-    pub fn new(title: &str) -> Result<Self, WindowError> {
+    pub fn new(title: &str, x: i32, y: i32, width: i32, height: i32) -> Result<Self, WindowError> {
         let title = title.to_string();
 
         static ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
@@ -36,7 +36,9 @@ impl WindowHandler {
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
         match std::env::consts::OS {
-            "windows" => thread::spawn(move || { MSWindow::new(title, id, evt_sender, req_receiver).run() }),
+            "windows" => thread::spawn(move || {
+                MSWindow::new(title, x, y, width, height, id, evt_sender, req_receiver).run()
+            }),
             // "linux" => thread::spawn(move || { WindowLinux::new(title, req_receiver).run() }),
             _ => return Err(WindowError::ERROR_UNSUPPORTED_OS),
         };
@@ -48,39 +50,24 @@ impl WindowHandler {
         })
     }
 
+    // * Requests * //
     #[inline]
     fn send_request<T>(&self, req: WndRequest, recv: Receiver<T>) -> T {
         let _ = self.req_sender.send(req);
         recv.recv().unwrap() // If the sender is dropped, this returns an error, do I have to make all of these a result/option now?
     }
 
-    // * Events * //
-    fn poll_window_events(&mut self) {
-        for wnd_event in self.evt_receiver.try_iter() {
-            self.window_events.push_back(wnd_event);
-        }
-    }
-    
-    pub fn pop_wnd_event(&mut self) -> Option<WndEvent> {
-        self.poll_window_events();
-        self.window_events.pop_front()
-    }
-    pub fn wnd_event_iter(&mut self) -> Iter<'_, WndEvent> {
-        self.poll_window_events();
-        self.window_events.iter()
-    }
-
     // * Getters * //
-    //Top left corner x, y,
-    pub fn get_wnd_pos(&self) -> (i32, i32) {
+    // X pos, Y pos, Width, Height (includes header and border)
+    pub fn get_wnd_rect(&self) -> (i32, i32, i32, i32) {
         let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::GetWndPos { rtrn };
+        let req = WndRequest::GetWndRect { rtrn };
         self.send_request(req, recv)
     }
-    // Width, height
-    pub fn get_wnd_size(&self) -> (i32, i32) {
+    // X pos, Y pos, Width, Height (only includes client area)
+    pub fn get_client_rect(&self) -> (i32, i32, i32, i32) {
         let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::GetWndSize { rtrn };
+        let req = WndRequest::GetClientRect { rtrn };
         self.send_request(req, recv)
     }
 
@@ -154,9 +141,26 @@ impl WindowHandler {
         let req = WndRequest::Maximize { rtrn };
         self.send_request(req, recv)
     }
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Close { rtrn };
         self.send_request(req, recv)
+    }
+
+    // * Events * //
+    #[inline]
+    fn poll_window_events(&mut self) {
+        for wnd_event in self.evt_receiver.try_iter() {
+            self.window_events.push_back(wnd_event);
+        }
+    }
+    
+    pub fn pop_wnd_event(&mut self) -> Option<WndEvent> {
+        self.poll_window_events();
+        self.window_events.pop_front()
+    }
+    pub fn wnd_event_iter(&mut self) -> Iter<'_, WndEvent> {
+        self.poll_window_events();
+        self.window_events.iter()
     }
 }
