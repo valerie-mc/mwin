@@ -1,19 +1,18 @@
-mod window_trait;
-mod microsoft_window;
-mod linux_window;
+mod microsoft;
+mod linux;
 
 use std::{
-    collections::vec_deque::{VecDeque, Iter},
+    collections::vec_deque::{Iter, VecDeque},
     sync::{
-        mpsc::{self, Receiver, Sender},
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering}, mpsc::{self, Receiver, Sender}, Arc, Mutex
     },
     thread
 };
 
 use crate::{
     errors::*,
-    handler::{microsoft_window::MSWindow, window_trait::Window},
+    traits::{image_buffer::ImageBuffer, window::Window},
+    handler::microsoft::{ms_image_buffer::MSImageBuffer, ms_window::MSWindow},
     messaging::{events::*, requests::*}
 };
 
@@ -23,6 +22,7 @@ pub struct WindowHandler {
     req_sender: Sender<WndRequest>,
     evt_receiver: Receiver<WndEvent>,
     window_events: VecDeque<WndEvent>,
+    image_buffer: Arc<Mutex<dyn ImageBuffer + Send>>,
 }
 
 impl WindowHandler {
@@ -35,10 +35,20 @@ impl WindowHandler {
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
+        let image_buffer: Arc<Mutex<dyn ImageBuffer + Send>>;
+
         match std::env::consts::OS {
-            "windows" => thread::spawn(move || {
-                MSWindow::new(title, x, y, width, height, id, evt_sender, req_receiver).run()
-            }),
+            "windows" => {
+                image_buffer = Arc::new(Mutex::new(MSImageBuffer::default()));
+                let shared_image_buffer = image_buffer.clone();
+
+                thread::spawn(move || {
+                    MSWindow::new(
+                        title, x, y, width, height, 
+                        id, evt_sender, req_receiver, shared_image_buffer
+                    ).run()
+                })
+            },
             // "linux" => thread::spawn(move || { WindowLinux::new(title, req_receiver).run() }),
             _ => return Err(WindowError::ERROR_UNSUPPORTED_OS),
         };
@@ -47,6 +57,7 @@ impl WindowHandler {
             req_sender,
             evt_receiver,
             window_events: VecDeque::new(),
+            image_buffer,
         })
     }
 
@@ -141,6 +152,7 @@ impl WindowHandler {
         let req = WndRequest::Maximize { rtrn };
         self.send_request(req, recv)
     }
+    
     pub fn close(&self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Close { rtrn };
@@ -162,5 +174,23 @@ impl WindowHandler {
     pub fn wnd_event_iter(&mut self) -> Iter<'_, WndEvent> {
         self.poll_window_events();
         self.window_events.iter()
+    }
+
+    // * Image Buffer * //
+    pub fn resize_buffer(&self) {
+        let (_, _, width, height) = self.get_client_rect();
+
+        let mut image_buffer = self.image_buffer.lock().unwrap();
+        image_buffer.resize_buffer(width, height);
+    }
+
+    pub fn clear_buffer(&self) {
+        let mut image_buffer = self.image_buffer.lock().unwrap();
+        image_buffer.clear_buffer();
+    }
+
+    pub fn set_pixel(&self, x: i32, y: i32, r: u8, g: u8, b: u8) {
+        let mut image_buffer = self.image_buffer.lock().unwrap();
+        image_buffer.set_pixel(x, y, r, g, b);
     }
 }
