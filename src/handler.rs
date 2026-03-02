@@ -193,4 +193,6 @@ impl WindowHandler {
         let mut image_buffer = self.image_buffer.lock().unwrap();
         image_buffer.set_pixel(x, y, r, g, b);
     }
+
+    // TODO: Fn to draw buffer on screen
 }
