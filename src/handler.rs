@@ -2,7 +2,6 @@ mod microsoft;
 mod linux;
 
 use std::{
-    collections::vec_deque::{Iter, VecDeque},
     sync::{
         atomic::{AtomicUsize, Ordering}, mpsc::{self, Receiver, Sender}, Arc, Mutex
     },
@@ -21,7 +20,6 @@ use crate::{
 pub struct WindowHandler {
     req_sender: Sender<WndRequest>,
     evt_receiver: Receiver<WndEvent>,
-    window_events: VecDeque<WndEvent>,
     image_buffer: Arc<Mutex<dyn ImageBuffer + Send>>,
 }
 
@@ -56,7 +54,6 @@ impl WindowHandler {
         Ok(WindowHandler {
             req_sender,
             evt_receiver,
-            window_events: VecDeque::new(),
             image_buffer,
         })
     }
@@ -126,17 +123,6 @@ impl WindowHandler {
         self.send_request(req, recv)
     }
 
-    pub fn capture_mouse(&self) {
-        let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::CaptureMouse { rtrn };
-        self.send_request(req, recv)
-    }
-    pub fn release_mouse(&self) {
-        let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::ReleaseMouse { rtrn };
-        self.send_request(req, recv)
-    }
-
     pub fn set_visibility(&self, visible: bool) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetVisibility { args: visible, rtrn };
@@ -161,38 +147,35 @@ impl WindowHandler {
 
     // * Events * //
     #[inline]
-    fn poll_window_events(&mut self) {
-        for wnd_event in self.evt_receiver.try_iter() {
-            self.window_events.push_back(wnd_event);
-        }
-    }
-    
-    pub fn pop_wnd_event(&mut self) -> Option<WndEvent> {
-        self.poll_window_events();
-        self.window_events.pop_front()
-    }
-    pub fn wnd_event_iter(&mut self) -> Iter<'_, WndEvent> {
-        self.poll_window_events();
-        self.window_events.iter()
+    pub fn get_wnd_events(&mut self) -> Vec<WndEvent> {
+        self.evt_receiver.try_iter().collect()
     }
 
     // * Image Buffer * //
+    pub fn draw_buffer(&self) {
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::DrawBuffer { rtrn };
+        self.send_request(req, recv)
+    }
+
     pub fn resize_buffer(&self) {
         let (_, _, width, height) = self.get_client_rect();
-
+        
         let mut image_buffer = self.image_buffer.lock().unwrap();
         image_buffer.resize_buffer(width, height);
     }
-
     pub fn clear_buffer(&self) {
         let mut image_buffer = self.image_buffer.lock().unwrap();
         image_buffer.clear_buffer();
     }
 
+    // TODO: Assumes values are in correct order    
+    pub fn set_buffer(&self, buffer: Vec<u8>) {
+        let mut image_buffer = self.image_buffer.lock().unwrap();
+        image_buffer.set_buffer(buffer);
+    }
     pub fn set_pixel(&self, x: i32, y: i32, r: u8, g: u8, b: u8) {
         let mut image_buffer = self.image_buffer.lock().unwrap();
         image_buffer.set_pixel(x, y, r, g, b);
     }
-
-    // TODO: Fn to draw buffer on screen
 }

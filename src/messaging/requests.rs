@@ -19,12 +19,11 @@ pub enum WndRequest {
     SetWndSize { args: (i32, i32), rtrn: Sender<()> },
     SetWndPosAndSize { args: (i32, i32, i32, i32), rtrn: Sender<()> },
 
-    CaptureMouse { rtrn: Sender<()> },
-    ReleaseMouse { rtrn: Sender<()> },
-
     SetVisibility { args: bool, rtrn: Sender<()> },
     Minimize { rtrn: Sender<()> },
     Maximize { rtrn: Sender<()> },
 
     Close { rtrn: Sender<()> },
+
+    DrawBuffer { rtrn: Sender<()> },
 }
