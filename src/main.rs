@@ -3,6 +3,9 @@ pub mod handler;
 pub mod messaging;
 pub mod traits;
 
+use core::time;
+use std::thread;
+
 use crate::messaging::events::{KeyCode, WndEvent};
 use crate::handler::WindowHandler;
 
@@ -14,15 +17,12 @@ const W: i32 = 256 * 4;
 const H: i32 = 256 * 4;
 
 fn main() {
-
     let mut wnd = WindowHandler::new("Window", 500, 500, W, H).unwrap();
 
     let mut running = true;
 
     // TODO: There is a bug where sometimes the window just doesn't even open
     // TODO: Window freezes when I press a key (could be something with my changes to events)
-
-    println!("running");
 
     let mut temp_buffer = vec![0; (4 * W * H) as usize];
 
@@ -51,6 +51,7 @@ fn main() {
                         _ => ()
                     }
                 }
+                WndEvent::WindowClosed => running = false,
                 _ => ()
             }
         }

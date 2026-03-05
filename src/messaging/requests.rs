@@ -9,7 +9,6 @@ pub enum WndRequest {
 
     GetCursorPos { rtrn: Sender<(i32, i32)> },
     GetCursorClientPos { rtrn: Sender<(i32, i32)> },
-    IsMouseCaptured { rtrn: Sender<bool> },
 
     IsVisible { rtrn: Sender<bool> },
     IsFocused { rtrn: Sender<bool> },
@@ -22,8 +21,14 @@ pub enum WndRequest {
     SetVisibility { args: bool, rtrn: Sender<()> },
     Minimize { rtrn: Sender<()> },
     Maximize { rtrn: Sender<()> },
-
     Close { rtrn: Sender<()> },
 
+    // Drawing
     DrawBuffer { rtrn: Sender<()> },
+
+    ResizeBuffer { args: (i32, i32), rtrn: Sender<()> },
+    ClearBuffer { rtrn: Sender<()> },
+
+    SetBuffer { args: Vec<u8>, rtrn: Sender<()> },
+    SetPixel { args: (i32, i32, u8, u8, u8), rtrn: Sender<()> }
 }

@@ -3,16 +3,17 @@ mod linux;
 
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering}, mpsc::{self, Receiver, Sender}, Arc, Mutex
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{self, Receiver, Sender}
     },
     thread
 };
 
 use crate::{
-    errors::*,
-    traits::{image_buffer::ImageBuffer, window::Window},
-    handler::microsoft::{ms_image_buffer::MSImageBuffer, ms_window::MSWindow},
-    messaging::{events::*, requests::*}
+    errors::WindowError,
+    traits::window::Window,
+    handler::microsoft::ms_window::MSWindow,
+    messaging::{events::*, requests::WndRequest}
 };
 
 // TODO: This is where you should add documentation (actually, maybe just in WindowHandler)
@@ -20,7 +21,6 @@ use crate::{
 pub struct WindowHandler {
     req_sender: Sender<WndRequest>,
     evt_receiver: Receiver<WndEvent>,
-    image_buffer: Arc<Mutex<dyn ImageBuffer + Send>>,
 }
 
 impl WindowHandler {
@@ -33,17 +33,12 @@ impl WindowHandler {
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
-        let image_buffer: Arc<Mutex<dyn ImageBuffer + Send>>;
-
         match std::env::consts::OS {
             "windows" => {
-                image_buffer = Arc::new(Mutex::new(MSImageBuffer::default()));
-                let shared_image_buffer = image_buffer.clone();
-
                 thread::spawn(move || {
                     MSWindow::new(
                         title, x, y, width, height, 
-                        id, evt_sender, req_receiver, shared_image_buffer
+                        id, req_receiver, evt_sender
                     ).run()
                 })
             },
@@ -54,8 +49,13 @@ impl WindowHandler {
         Ok(WindowHandler {
             req_sender,
             evt_receiver,
-            image_buffer,
         })
+    }
+
+    // * Events * //
+    #[inline]
+    pub fn get_wnd_events(&mut self) -> Vec<WndEvent> {
+        self.evt_receiver.try_iter().collect()
     }
 
     // * Requests * //
@@ -87,11 +87,6 @@ impl WindowHandler {
     pub fn get_cursor_client_pos(&self) -> (i32, i32) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::GetCursorClientPos { rtrn };
-        self.send_request(req, recv)
-    }
-    pub fn is_mouse_captured(&self) -> bool {
-        let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::IsMouseCaptured { rtrn };
         self.send_request(req, recv)
     }
 
@@ -138,44 +133,39 @@ impl WindowHandler {
         let req = WndRequest::Maximize { rtrn };
         self.send_request(req, recv)
     }
-    
     pub fn close(&self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Close { rtrn };
         self.send_request(req, recv)
     }
 
-    // * Events * //
-    #[inline]
-    pub fn get_wnd_events(&mut self) -> Vec<WndEvent> {
-        self.evt_receiver.try_iter().collect()
-    }
-
-    // * Image Buffer * //
+    // * Drawing * //
     pub fn draw_buffer(&self) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::DrawBuffer { rtrn };
         self.send_request(req, recv)
     }
 
-    pub fn resize_buffer(&self) {
-        let (_, _, width, height) = self.get_client_rect();
-        
-        let mut image_buffer = self.image_buffer.lock().unwrap();
-        image_buffer.resize_buffer(width, height);
+    pub fn resize_buffer(&self, width: i32, height: i32) {
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::ResizeBuffer { args: (width, height), rtrn };
+        self.send_request(req, recv)
     }
     pub fn clear_buffer(&self) {
-        let mut image_buffer = self.image_buffer.lock().unwrap();
-        image_buffer.clear_buffer();
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::ClearBuffer { rtrn };
+        self.send_request(req, recv)
     }
 
     // TODO: Assumes values are in correct order    
     pub fn set_buffer(&self, buffer: Vec<u8>) {
-        let mut image_buffer = self.image_buffer.lock().unwrap();
-        image_buffer.set_buffer(buffer);
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::SetBuffer { args: buffer, rtrn };
+        self.send_request(req, recv)
     }
     pub fn set_pixel(&self, x: i32, y: i32, r: u8, g: u8, b: u8) {
-        let mut image_buffer = self.image_buffer.lock().unwrap();
-        image_buffer.set_pixel(x, y, r, g, b);
+        let (rtrn, recv) = mpsc::channel();
+        let req = WndRequest::SetPixel { args: (x, y, r, g, b), rtrn };
+        self.send_request(req, recv)
     }
 }
