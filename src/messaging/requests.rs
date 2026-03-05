@@ -30,5 +30,5 @@ pub enum WndRequest {
     ClearBuffer { rtrn: Sender<()> },
 
     SetBuffer { args: Vec<u8>, rtrn: Sender<()> },
-    SetPixel { args: (i32, i32, u8, u8, u8), rtrn: Sender<()> }
+    SetBufferDirect { args: Vec<u8>, rtrn: Sender<()> },
 }

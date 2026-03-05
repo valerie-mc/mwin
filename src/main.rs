@@ -3,9 +3,6 @@ pub mod handler;
 pub mod messaging;
 pub mod traits;
 
-use core::time;
-use std::thread;
-
 use crate::messaging::events::{KeyCode, WndEvent};
 use crate::handler::WindowHandler;
 
@@ -13,43 +10,33 @@ use crate::handler::WindowHandler;
 // use std::time;
 
 
-const W: i32 = 256 * 4;
-const H: i32 = 256 * 4;
+const DIRECT: bool = true;
 
 fn main() {
-    let mut wnd = WindowHandler::new("Window", 500, 500, W, H).unwrap();
+    let mut wnd = WindowHandler::new("Window", 500, 100, 500, 500).unwrap();
 
     let mut running = true;
 
-    // TODO: There is a bug where sometimes the window just doesn't even open
-    // TODO: Window freezes when I press a key (could be something with my changes to events)
-
-    let mut temp_buffer = vec![0; (4 * W * H) as usize];
-
-    println!("drawing pixels");
-    for x in 0..W-1 {
-        for y in 0..H-1 {
-            // wnd.set_pixel(x, y, (x % 255) as u8, (y % 255) as u8, 200);
-            temp_buffer[4 * (W * y + x) as usize + 2] = (x % 255) as u8;
-            temp_buffer[4 * (W * y + x) as usize + 1] = (y % 255) as u8;
-            temp_buffer[4 * (W * y + x) as usize] = 200;
-        }
-    }
-    wnd.set_buffer(temp_buffer);
-    wnd.draw_buffer();
-    println!("finished drawing pixels");
+    draw_pixels(&wnd);
 
     while running {
         for event in wnd.get_wnd_events() {
-            println!("{:?}", event);
             match event {
                 WndEvent::KeyboardInput { event } => {
                     match event.key {
                         KeyCode::D => draw_pixels(&wnd),
-                        KeyCode::E => wnd.clear_buffer(),
+                        KeyCode::E => {
+                            wnd.clear_buffer();
+                            wnd.draw_buffer();
+                        }
                         KeyCode::Q => running = false,
                         _ => ()
                     }
+                }
+                // TODO: Don't get updates when the windows is currently being resized
+                // TODO: Idk how important this really is, but it would be nice
+                WndEvent::WindowResized { width: _, height: _ } => {
+                    draw_pixels(&wnd);
                 }
                 WndEvent::WindowClosed => running = false,
                 _ => ()
@@ -59,12 +46,33 @@ fn main() {
 }
 
 fn draw_pixels(wnd: &WindowHandler) {
-    println!("drawing pixels");
-    for x in 0..W-1 {
-        for y in 0..H-1 {
-            wnd.set_pixel(x, y, (x % 255) as u8, (y % 255) as u8, 200);
+    let (_, _, w, h) = wnd.get_client_rect();
+    
+    wnd.resize_buffer(w, h);
+    
+    if DIRECT {
+        let mut temp_buffer = vec![0; (4 * w * h) as usize];
+
+        for y in 0..h {
+            for x in 0..w {
+                temp_buffer[(4 * (w * y + x) + 2) as usize] = (x % 255) as u8; // r
+                temp_buffer[(4 * (w * y + x) + 1) as usize] = (y % 255) as u8; // g
+                temp_buffer[(4 * (w * y + x)) as usize] = 200; // b
+            }
         }
+        wnd.set_buffer_direct(temp_buffer);
+        wnd.draw_buffer();
+    } else {
+        let mut temp_buffer = vec![0; (3 * w * h) as usize];
+
+        for y in 0..h {
+            for x in 0..w {
+                temp_buffer[3 * (w * y + x) as usize] = (x % 255) as u8; // r
+                temp_buffer[3 * (w * y + x) as usize + 1] = (y % 255) as u8; // g
+                temp_buffer[3 * (w * y + x) as usize + 2] = 200;  // b
+            }
+        }
+        wnd.set_buffer(temp_buffer);
+        wnd.draw_buffer();
     }
-    wnd.draw_buffer();
-    println!("finished drawing pixels");
 }

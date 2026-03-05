@@ -157,15 +157,16 @@ impl WindowHandler {
         self.send_request(req, recv)
     }
 
-    // TODO: Assumes values are in correct order    
+    // Expects a buffer of [r_1, g_1, b_2, r_2, g_2, b_2, ...]
     pub fn set_buffer(&self, buffer: Vec<u8>) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetBuffer { args: buffer, rtrn };
         self.send_request(req, recv)
     }
-    pub fn set_pixel(&self, x: i32, y: i32, r: u8, g: u8, b: u8) {
+    // Directly sets the image buffer, this is os dependent, but faster
+    pub fn set_buffer_direct(&self, buffer: Vec<u8>) {
         let (rtrn, recv) = mpsc::channel();
-        let req = WndRequest::SetPixel { args: (x, y, r, g, b), rtrn };
+        let req = WndRequest::SetBufferDirect { args: buffer, rtrn };
         self.send_request(req, recv)
     }
 }
