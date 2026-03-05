@@ -33,12 +33,11 @@ fn main() {
                         _ => ()
                     }
                 }
+                WndEvent::WindowClosed => running = false,
                 // TODO: Don't get updates when the windows is currently being resized
                 // TODO: Idk how important this really is, but it would be nice
-                WndEvent::WindowResized { width: _, height: _ } => {
-                    draw_pixels(&wnd);
-                }
-                WndEvent::WindowClosed => running = false,
+                WndEvent::WindowResized { width: _, height: _ } => draw_pixels(&wnd),
+                WndEvent::WindowMoved { x: _, y: _ } => draw_pixels(&wnd),
                 _ => ()
             }
         }
@@ -46,18 +45,17 @@ fn main() {
 }
 
 fn draw_pixels(wnd: &WindowHandler) {
-    let (_, _, w, h) = wnd.get_client_rect();
-    
+    let (c_x, c_y, w, h) = wnd.get_wnd_rect();
     wnd.resize_buffer(w, h);
-    
+
     if DIRECT {
         let mut temp_buffer = vec![0; (4 * w * h) as usize];
 
         for y in 0..h {
             for x in 0..w {
-                temp_buffer[(4 * (w * y + x) + 2) as usize] = (x % 255) as u8; // r
-                temp_buffer[(4 * (w * y + x) + 1) as usize] = (y % 255) as u8; // g
-                temp_buffer[(4 * (w * y + x)) as usize] = 200; // b
+                temp_buffer[(4 * (w * y + x) + 2) as usize] = ((c_x + x) % 255) as u8; // r
+                temp_buffer[(4 * (w * y + x) + 1) as usize] = ((c_y + y) % 255) as u8; // g
+                temp_buffer[(4 * (w * y + x)) as usize]     = 200; // b
             }
         }
         wnd.set_buffer_direct(temp_buffer);
@@ -67,8 +65,8 @@ fn draw_pixels(wnd: &WindowHandler) {
 
         for y in 0..h {
             for x in 0..w {
-                temp_buffer[3 * (w * y + x) as usize] = (x % 255) as u8; // r
-                temp_buffer[3 * (w * y + x) as usize + 1] = (y % 255) as u8; // g
+                temp_buffer[3 * (w * y + x) as usize]     = ((c_x + x) % 255) as u8; // r
+                temp_buffer[3 * (w * y + x) as usize + 1] = ((c_y + y) % 255) as u8; // g
                 temp_buffer[3 * (w * y + x) as usize + 2] = 200;  // b
             }
         }
