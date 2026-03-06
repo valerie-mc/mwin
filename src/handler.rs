@@ -58,10 +58,20 @@ impl WindowHandler {
         self.evt_receiver.try_iter().collect()
     }
 
+    pub fn get_wnd_event(&mut self) -> Option<WndEvent> {
+        // TODO: Probably could just return a result
+        if let Ok(event) = self.evt_receiver.try_recv() {
+            return Some(event);
+        } else {
+            return None;
+        }
+    }
+
     // * Requests * //
     #[inline]
     fn send_request<T>(&self, req: WndRequest, recv: Receiver<T>) -> T {
         let _ = self.req_sender.send(req);
+        println!("before receive request");
         recv.recv().unwrap() // If the sender is dropped, this returns an error, do I have to make all of these a result/option now?
     }
 

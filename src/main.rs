@@ -23,7 +23,10 @@ fn main() {
     wnd.draw_buffer();
 
     while running {
-        for event in wnd.get_wnd_events() {
+        // TODO: They get stuck in the queue for some reason bc they are sent to the event sender at the same time as it moves
+        // TODO: Stops running when recieving events
+        // for event in wnd.get_wnd_events() {
+        if let Some(event) = wnd.get_wnd_event() {
             match event {
                 WndEvent::KeyboardInput { event } => {
                     match event.key {
@@ -54,7 +57,9 @@ fn draw_pixels(wnd: &WindowHandler, c_x: i32, c_y: i32, w: i32, h: i32) {
     // let (c_x, c_y, w, h) = wnd.get_wnd_rect();
     println!("{:?}", (c_x, c_y, w, h));
     // return;
+
     wnd.resize_buffer(w, h);
+
 
     if DIRECT {
         let mut temp_buffer = vec![0; (4 * w * h) as usize];
@@ -66,6 +71,7 @@ fn draw_pixels(wnd: &WindowHandler, c_x: i32, c_y: i32, w: i32, h: i32) {
                 temp_buffer[(4 * (w * y + x)) as usize]     = 200; // b
             }
         }
+
         wnd.set_buffer_direct(temp_buffer);
         // wnd.draw_buffer();
     } else {
@@ -81,4 +87,6 @@ fn draw_pixels(wnd: &WindowHandler, c_x: i32, c_y: i32, w: i32, h: i32) {
         wnd.set_buffer(temp_buffer);
         // wnd.draw_buffer();
     }
+
+    println!("after draw");
 }
