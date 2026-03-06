@@ -1,42 +1,35 @@
 mod microsoft;
 mod linux;
 
-use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::{self, Receiver, Sender}
-    },
-    thread
-};
+use std::sync::{atomic, mpsc};
 
 use crate::{
     errors::WindowError,
-    traits::window::Window,
-    handler::microsoft::ms_window::MSWindow,
-    messaging::{events::*, requests::WndRequest}
+    handler::microsoft::ms_window::MSWindowContainer,
+    messaging::{events::WndEvent, requests::WndRequest}
 };
 
 // TODO: This is where you should add documentation (actually, maybe just in WindowHandler)
 
 pub struct WindowHandler {
-    req_sender: Sender<WndRequest>,
-    evt_receiver: Receiver<WndEvent>,
+    req_sender: mpsc::Sender<WndRequest>,
+    evt_receiver: mpsc::Receiver<WndEvent>,
 }
 
 impl WindowHandler {
     pub fn new(title: &str, x: i32, y: i32, width: i32, height: i32) -> Result<Self, WindowError> {
         let title = title.to_string();
 
-        static ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
-        let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+        static ID_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
+        let id = ID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
 
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
         match std::env::consts::OS {
             "windows" => {
-                thread::spawn(move || {
-                    MSWindow::new(
+                std::thread::spawn(move || {
+                    MSWindowContainer::new(
                         title, x, y, width, height, 
                         id, req_receiver, evt_sender
                     ).run()
@@ -69,9 +62,8 @@ impl WindowHandler {
 
     // * Requests * //
     #[inline]
-    fn send_request<T>(&self, req: WndRequest, recv: Receiver<T>) -> T {
+    fn send_request<T>(&self, req: WndRequest, recv: mpsc::Receiver<T>) -> T {
         let _ = self.req_sender.send(req);
-        println!("before receive request");
         recv.recv().unwrap() // If the sender is dropped, this returns an error, do I have to make all of these a result/option now?
     }
 

@@ -8,8 +8,6 @@ pub enum WndEvent {
     MouseScrolled { event: ScrollEvent },
     CursorMoved { event: CursorEvent },
 
-    WindowMoved { x: i32, y: i32 },
-    WindowResized { width: i32, height: i32 },
     WindowPosChanged { x: i32, y: i32, width: i32, height: i32 },
     WindowMinimized,
     WindowMaximized { width: i32, height: i32 },

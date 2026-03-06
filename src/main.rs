@@ -22,11 +22,10 @@ fn main() {
     draw_pixels(&wnd, 500, 500, 500, 500);
     wnd.draw_buffer();
 
+    // TODO: Why is drawing while moving so slow (is it because my drawing code is slow lol?)
+
     while running {
-        // TODO: They get stuck in the queue for some reason bc they are sent to the event sender at the same time as it moves
-        // TODO: Stops running when recieving events
-        // for event in wnd.get_wnd_events() {
-        if let Some(event) = wnd.get_wnd_event() {
+        for event in wnd.get_wnd_events() {
             match event {
                 WndEvent::KeyboardInput { event } => {
                     match event.key {
@@ -35,15 +34,6 @@ fn main() {
                     }
                 }
                 WndEvent::WindowClosed => running = false,
-                // TODO: Don't get updates when the windows is currently being resized
-                // TODO: Idk how important this really is, but it would be nice
-
-                // TODO: Set it so that these events only occur after the window is done moving/resizing? (or a least new events    )
-                
-                // TODO FR: Change these events to be whenever the window is moved/resized
-                // further, you need these to update the values they provide while it happens
-                // WndEvent::WindowResized { width: _, height: _ } => draw_pixels(&wnd),
-                // WndEvent::WindowMoved { x: _, y: _ } => draw_pixels(&wnd),
                 WndEvent::WindowPosChanged { x, y, width, height } => {
                     draw_pixels(&wnd, x, y, width, height);
                 }
@@ -73,7 +63,7 @@ fn draw_pixels(wnd: &WindowHandler, c_x: i32, c_y: i32, w: i32, h: i32) {
         }
 
         wnd.set_buffer_direct(temp_buffer);
-        // wnd.draw_buffer();
+        wnd.draw_buffer();
     } else {
         let mut temp_buffer = vec![0; (3 * w * h) as usize];
 
@@ -87,6 +77,4 @@ fn draw_pixels(wnd: &WindowHandler, c_x: i32, c_y: i32, w: i32, h: i32) {
         wnd.set_buffer(temp_buffer);
         // wnd.draw_buffer();
     }
-
-    println!("after draw");
 }
