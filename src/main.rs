@@ -15,37 +15,45 @@ const DIRECT: bool = true;
 fn main() {
     let mut wnd = WindowHandler::new("Window", 500, 100, 500, 500).unwrap();
 
+    // TODO: Test what happens with keyboard inputs when two windows are open (none thingy)
+
     let mut running = true;
 
-    draw_pixels(&wnd);
+    draw_pixels(&wnd, 500, 500, 500, 500);
+    wnd.draw_buffer();
 
     while running {
         for event in wnd.get_wnd_events() {
             match event {
                 WndEvent::KeyboardInput { event } => {
                     match event.key {
-                        KeyCode::D => draw_pixels(&wnd),
-                        KeyCode::E => {
-                            wnd.clear_buffer();
-                            wnd.draw_buffer();
-                        }
                         KeyCode::Q => running = false,
-                        _ => ()
+                        _ => (),
                     }
                 }
                 WndEvent::WindowClosed => running = false,
                 // TODO: Don't get updates when the windows is currently being resized
                 // TODO: Idk how important this really is, but it would be nice
-                WndEvent::WindowResized { width: _, height: _ } => draw_pixels(&wnd),
-                WndEvent::WindowMoved { x: _, y: _ } => draw_pixels(&wnd),
+
+                // TODO: Set it so that these events only occur after the window is done moving/resizing? (or a least new events    )
+                
+                // TODO FR: Change these events to be whenever the window is moved/resized
+                // further, you need these to update the values they provide while it happens
+                // WndEvent::WindowResized { width: _, height: _ } => draw_pixels(&wnd),
+                // WndEvent::WindowMoved { x: _, y: _ } => draw_pixels(&wnd),
+                WndEvent::WindowPosChanged { x, y, width, height } => {
+                    draw_pixels(&wnd, x, y, width, height);
+                }
                 _ => ()
             }
         }
     }
 }
 
-fn draw_pixels(wnd: &WindowHandler) {
-    let (c_x, c_y, w, h) = wnd.get_wnd_rect();
+fn draw_pixels(wnd: &WindowHandler, c_x: i32, c_y: i32, w: i32, h: i32) {
+    // let (c_x, c_y, w, h) = wnd.get_wnd_rect();
+    println!("{:?}", (c_x, c_y, w, h));
+    // return;
     wnd.resize_buffer(w, h);
 
     if DIRECT {
@@ -59,7 +67,7 @@ fn draw_pixels(wnd: &WindowHandler) {
             }
         }
         wnd.set_buffer_direct(temp_buffer);
-        wnd.draw_buffer();
+        // wnd.draw_buffer();
     } else {
         let mut temp_buffer = vec![0; (3 * w * h) as usize];
 
@@ -71,6 +79,6 @@ fn draw_pixels(wnd: &WindowHandler) {
             }
         }
         wnd.set_buffer(temp_buffer);
-        wnd.draw_buffer();
+        // wnd.draw_buffer();
     }
 }

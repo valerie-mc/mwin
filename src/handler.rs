@@ -146,6 +146,7 @@ impl WindowHandler {
         self.send_request(req, recv)
     }
 
+    // * NOTE Only resizes if the buffer would be a different size
     pub fn resize_buffer(&self, width: i32, height: i32) {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::ResizeBuffer { args: (width, height), rtrn };
