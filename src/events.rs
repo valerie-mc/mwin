@@ -2,12 +2,14 @@ use bitflags::bitflags;
 
 #[derive(Debug)]
 pub enum WndEvent {
+    // Input
     KeyboardInput { event: KeyEvent },
-
     MouseInput { event: MouseEvent },
     MouseScrolled { event: ScrollEvent },
     CursorMoved { event: CursorEvent },
 
+    // Window state
+    WindowPosChanging,
     WindowPosChanged { x: i32, y: i32, width: i32, height: i32 },
     WindowMinimized,
     WindowMaximized { width: i32, height: i32 },

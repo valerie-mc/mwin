@@ -1,18 +1,20 @@
-use std::error::Error;
-use std::fmt::Display;
+use std::error;
+use std::fmt;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum WindowError {
-    ERROR_UNSUPPORTED_OS,
+    UnsupportedOS,
+    WindowClosed,
 }
 
-impl Display for WindowError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for WindowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            WindowError::ERROR_UNSUPPORTED_OS => write!(f, "Cannot create a window on '{}' because it is an unsupported os.", std::env::consts::OS),
+            WindowError::UnsupportedOS => write!(f, "Cannot create a window on '{}' because it is an unsupported os.", std::env::consts::OS),
+            WindowError::WindowClosed => write!(f, "The window has been closed and/or dropped."),
         }
     }
 }
 
-impl Error for WindowError {}
+impl error::Error for WindowError {}
