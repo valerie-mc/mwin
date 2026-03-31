@@ -20,8 +20,6 @@ fn sleep(millis: u64) {
 #[test]
 fn constructor_one_window_test() {
     let _wnd1 = create_window();
-
-    let window = WindowHandler::new("My Window", 0, 0, 500, 500).unwrap();
 }
 
 #[test]
