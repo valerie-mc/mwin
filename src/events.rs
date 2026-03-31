@@ -1,12 +1,12 @@
 use bitflags::bitflags;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum WndEvent {
     // Input
-    KeyboardInput { event: KeyEvent },
-    MouseInput { event: MouseEvent },
-    MouseScrolled { event: ScrollEvent },
-    CursorMoved { event: CursorEvent },
+    KeyboardInput { kb_event: KeyEvent },
+    MouseInput { mb_event: MouseEvent },
+    MouseScrolled { ms_event: ScrollEvent },
+    CursorMoved { cm_event: CursorEvent },
 
     // Window state
     WindowPosChanging,
@@ -19,14 +19,14 @@ pub enum WndEvent {
     WindowDestroyed,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct KeyEvent {
     pub key: KeyCode,
     pub state: KeyState,
     pub modifiers: Modifiers,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct MouseEvent {
     pub key: KeyCode,
     pub state: KeyState,
@@ -34,14 +34,14 @@ pub struct MouseEvent {
     pub position: (i32, i32),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ScrollEvent {
     pub modifiers: Modifiers,
     pub position: (i32, i32),
     pub direction: ScrollDirection,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CursorEvent {
     pub modifiers: Modifiers,
     pub position: (i32, i32),
@@ -49,7 +49,7 @@ pub struct CursorEvent {
 
 // * Enums and Constants * //
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum KeyCode {
     NUM0, NUM1, NUM2, NUM3, NUM4, NUM5, NUM6, NUM7, NUM8, NUM9, // Number row numbers
     A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z, // Letters
@@ -62,20 +62,20 @@ pub enum KeyCode {
     LeftMouse, MiddleMouse, RightMouse, XMouse1, XMouse2, // Mouse buttons (X1 and X2 are the two additional buttons on mouses)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum KeyState {
     Pressed,
     Released
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ScrollDirection {
     Up,
     Down
 }
 
 bitflags! {
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
     pub struct Modifiers: u8 {
         const SHIFT = 1 << 0;
         const CTRL  = 1 << 1;

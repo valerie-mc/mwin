@@ -20,12 +20,11 @@ use windows::Win32::{
 use windows_strings::{HSTRING, PCWSTR};
 
 use crate::{
-    handler::microsoft::ms_image_buffer::MSImageBuffer,
-    events::*,
-    requests::WndRequest,
-    traits::{ImageBuffer, Window},
+    events::*, handler::microsoft::ms_image_buffer::MSImageBuffer, requests::WndRequest, traits::{ImageBuffer, Window}
 };
 
+// As a note, the situtations in which Window API functions return an error was determined using
+// AI (specifically Claude), as such, I don't know if the lists are exhaustive of all error cases.
 
 // Custom window message for when there is a window request
 const WM_HANDLE_REQUEST: u32 = WM_USER + 1;
@@ -63,12 +62,12 @@ impl MSWindowContainer {
         } };
 
 
-        // Registers settings with window, returns zero if the function fails
+        // Registers settings with window (should only fail if out of memory)
         if unsafe { RegisterClassW(&wnd_class) == 0 } {
             unsafe { panic!("Failed to register window class. Window error code '{:?}'", GetLastError()) };
         }
 
-        // Create window + init image_buffer
+        // Create window + init image_buffer (should only fail if out of memory)
         let hwnd = unsafe { CreateWindowExW(
             WINDOW_EX_STYLE(0),                // No extended window styles  
             wnd_class.lpszClassName,           // Class name
@@ -76,7 +75,7 @@ impl MSWindowContainer {
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,  // Default window
             x, y, width, height,
             None, None, Some(wnd_class.hInstance), None // Other settings
-        ).unwrap_or_default() };
+        ).unwrap_or_else(|_s| panic!("Failed to create window. Window error code '{:?}'", GetLastError())) };
 
         let mut image_buffer = MSImageBuffer::default();
         image_buffer.init(width, height);
@@ -92,8 +91,10 @@ impl MSWindowContainer {
 
         let subclass_ptr = (&*subclass) as *const MSWindow as usize;
 
-        // Register subclass with id
-        unsafe { let _ = Shell::SetWindowSubclass(hwnd, Some(wnd_subclass_proc), id, subclass_ptr); }
+        // Register subclass with id (should only fail if out of memory)
+        if unsafe { !Shell::SetWindowSubclass(hwnd, Some(wnd_subclass_proc), id, subclass_ptr).as_bool() } {
+            unsafe { panic!("Failed to set subclass. Window error code '{:?}'", GetLastError()); }
+        }
         
         MSWindowContainer {
             subclass,
@@ -273,7 +274,7 @@ impl MSWindow {
 
         // * Create and send event
         self.send_event(WndEvent::KeyboardInput { 
-            event: KeyEvent {
+            kb_event: KeyEvent {
                 key,
                 state,
                 modifiers,
@@ -283,7 +284,7 @@ impl MSWindow {
     
     fn handle_mouse_input(&self, key: KeyCode, state: KeyState, wparam: WPARAM, lparam: LPARAM) {
         self.send_event(WndEvent::MouseInput { 
-            event: MouseEvent {
+            mb_event: MouseEvent {
                 key,
                 state,
                 modifiers: MSWindow::get_mouse_modifiers(wparam),
@@ -300,7 +301,7 @@ impl MSWindow {
         };
 
         self.send_event(WndEvent::MouseScrolled { 
-            event: ScrollEvent {
+            ms_event: ScrollEvent {
                 modifiers: MSWindow::get_mouse_modifiers(wparam),
                 position: MSWindow::get_mouse_position(lparam),
                 direction,
@@ -310,7 +311,7 @@ impl MSWindow {
 
     fn handle_cursor_move(&self, wparam: WPARAM, lparam: LPARAM) {
         self.send_event(WndEvent::CursorMoved { 
-            event: CursorEvent {
+            cm_event: CursorEvent {
                 modifiers: MSWindow::get_mouse_modifiers(wparam),
                 position: MSWindow::get_mouse_position(lparam),
             } 
@@ -340,25 +341,25 @@ impl Window for MSWindow {
     // * Getters * //
     fn get_wnd_rect(&self) -> (i32, i32, i32, i32) {
         let mut rect: RECT = Default::default();
-        unsafe { GetWindowRect(self.hwnd, &mut rect).unwrap(); }
+        unsafe { GetWindowRect(self.hwnd, &mut rect).expect("Handle should be valid."); }
         (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
     }
-    fn get_client_rect(&self) -> (i32, i32, i32, i32) {
+    fn get_wnd_size(&self) -> (i32, i32) {
         let mut rect: RECT = Default::default();
-        unsafe { GetClientRect(self.hwnd, &mut rect).unwrap(); }
-        (rect.left, rect.top, rect.right, rect.bottom)
+        unsafe { GetClientRect(self.hwnd, &mut rect).expect("Handle should be valid."); }
+        (rect.right, rect.bottom)
     }
 
     fn get_cursor_pos(&self) -> (i32, i32) {
         let mut point: POINT = Default::default();
-        unsafe { GetCursorPos(&mut point).unwrap(); }
+        unsafe { GetCursorPos(&mut point).expect("Point should not be null."); }
         (point.x, point.y)
     }
     fn get_cursor_client_pos(&self) -> (i32, i32) {
         let mut point: POINT = Default::default();
         unsafe { 
-            GetCursorPos(&mut point).unwrap();
-            let _ = ScreenToClient(self.hwnd, &mut point);
+            GetCursorPos(&mut point).expect("Point should not be null.");
+            let _ = ScreenToClient(self.hwnd, &mut point); // Fails if hwnd is invalid (which shouldn't happen)
         }
         (point.x, point.y)
     }
@@ -372,6 +373,7 @@ impl Window for MSWindow {
     
     // * Setters * //
 
+    // These all fail if hwnd is invalid (which shouldn't happen)
     fn set_wnd_pos(&self, x: i32, y: i32) {
         unsafe { let _ = SetWindowPos(self.hwnd, None, x, y, 0, 0, SWP_NOSIZE); }
     }
@@ -430,7 +432,7 @@ unsafe extern "system" fn wnd_subclass_proc(
     hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, id: usize, dw_ref_data: usize
 ) -> LRESULT {
     // Convert dw_ref_data to subclass pointer
-    let subclass = unsafe { (dw_ref_data as *mut MSWindow).as_mut().expect("null dw_ref_data") };
+    let subclass = unsafe { (dw_ref_data as *mut MSWindow).as_mut().expect("dw_ref_data is null") };
 
     // Handles messages (this is in the subclass proc because the window enters a modal loop when moved/resized)
     if let Ok(req) = subclass.req_receiver.try_recv() {

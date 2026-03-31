@@ -6,7 +6,7 @@ pub trait Window {
         match req {
             // Getters
             WndRequest::GetWndRect { rtrn } => { let _ = rtrn.send(self.get_wnd_rect()); }
-            WndRequest::GetClientRect { rtrn } => { let _ = rtrn.send(self.get_client_rect()); }
+            WndRequest::GetWndSize { rtrn } => { let _ = rtrn.send(self.get_wnd_size()); }
 
             WndRequest::GetCursorPos { rtrn } => { let _ = rtrn.send(self.get_cursor_pos()); }
             WndRequest::GetCursorClientPos { rtrn } => { let _ = rtrn.send(self.get_cursor_client_pos()); }
@@ -37,7 +37,7 @@ pub trait Window {
 
     // * Getters * //
     fn get_wnd_rect(&self) -> (i32, i32, i32, i32);
-    fn get_client_rect(&self) -> (i32, i32, i32, i32);
+    fn get_wnd_size(&self) -> (i32, i32);
 
     fn get_cursor_pos(&self) -> (i32, i32);
     fn get_cursor_client_pos(&self) -> (i32, i32);

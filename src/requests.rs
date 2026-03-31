@@ -5,7 +5,7 @@ use std::sync::mpsc::Sender;
 pub enum WndRequest {
     // Getters
     GetWndRect { rtrn: Sender<(i32, i32, i32, i32)> },
-    GetClientRect { rtrn: Sender<(i32, i32, i32, i32)> },
+    GetWndSize { rtrn: Sender<(i32, i32)> },
 
     GetCursorPos { rtrn: Sender<(i32, i32)> },
     GetCursorClientPos { rtrn: Sender<(i32, i32)> },

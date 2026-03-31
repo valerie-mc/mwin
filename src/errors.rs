@@ -1,8 +1,7 @@
 use std::error;
 use std::fmt;
 
-#[derive(Debug)]
-#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum WindowError {
     UnsupportedOS,
     WindowClosed,
