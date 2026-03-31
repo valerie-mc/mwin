@@ -1,8 +1,10 @@
 [package]
 name = "mwin"
 version = "0.1.0"
-license = "MIT"
 description = "A window creation and management library which focuses on ease of use."
+license = "MIT"
+repository = "https://github.com/valerie-mc/mwin"
+readme = "README.md"
 rust-version = "1.86.0"
 edition = "2024"
 
