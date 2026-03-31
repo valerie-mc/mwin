@@ -1,8 +1,6 @@
 use std::{thread, time::Duration};
-use mwin::{errors, events, WindowHandler};
+use mwin::{WindowError, events, WindowHandler};
 
-// TODO: These tests are integration tests, you should add unit tests
-// TODO: See: https://doc.rust-lang.org/book/ch11-03-test-organization.html
 
 // Helper functions
 fn create_window() -> WindowHandler {
@@ -20,40 +18,6 @@ fn sleep(millis: u64) {
 
 
 #[test]
-fn test_fn() {
-    use std::{thread, time::Duration};
-
-    // Creates a new window with the title "My Window", at (0, 0) with a size of 500 by 500.
-    let window = WindowHandler::new("My Window", 0, 0, 500, 500)
-        .expect("Current operating system is unsupported.");
-
-    // Creates a buffer of 500 * 500 white pixels
-    let buffer: Vec<u8> = vec![255; 3 * (500 * 500)];
-
-    window.set_buffer(buffer);
-
-    // This stops the window from closing when the WindowHandler is dropped.
-    thread::sleep(Duration::from_secs(5));
-}
-
-
-
-#[test]
-fn test_fn_2() {
-    // use mwin::{events, WindowHandler};
-    let wnd = WindowHandler::new("Window", 0, 250, 500, 750)
-        .expect("Current operating system is unsupported.");
-
-    sleep(3000);
-
-    // Exact size of the boarder depends on the os, this represents Windows' border
-    assert_eq!((482, 706), wnd.get_wnd_size().expect("Window shouldn't be closed."));
-}
-
-
-
-// Constructor test
-#[test]
 fn constructor_one_window_test() {
     let _wnd1 = create_window();
 }
@@ -64,31 +28,18 @@ fn constructor_two_windows_test() {
     let _wnd2 = create_window();
 }
 
-// Get Wnd Events test
 #[test]
-fn get_wnd_events_test() {
-    // let wnd = create_window();
-
-    // wnd.minimize();
-    // wnd.maximize();
-    // wnd.
-
-    // sleep(100);
+fn get_wnd_rect_test() {
+    let wnd = create_window();
+    assert_eq!(Ok((0, 0, 500, 500)), wnd.get_wnd_rect());
 }
 
+#[test]
+fn get_wnd_size_test() {
+    let wnd = create_window();
+    assert_eq!(Ok((482, 456)), wnd.get_wnd_size());
+}
 
-// Get Wnd Event test
-
-    // Get wnd rect
-
-
-// get client rect
-
-// get curous post
-
-// get_cursour client pos
-
-// is visible
 #[test]
 fn is_visible_test() {
     let wnd = create_window();
@@ -101,7 +52,7 @@ fn is_visible_test() {
     assert!(!wnd.is_visible().unwrap());
 }
 
-// is focused
+// * NOTE: This test cannot be run at the same time as other test, otherwise it will fail
 #[test]
 fn is_focused_test() {
     let wnd1 = create_window();
@@ -117,25 +68,46 @@ fn is_focused_test() {
     assert_eq!(events::WndEvent::WindowFocused, wnd1.get_wnd_event().unwrap());
 }
 
-// set wnd pos
+#[test]
+fn set_wnd_pos_test() {
+    let wnd = create_window();
+    wnd.set_wnd_pos(300, 400);
+    assert_eq!(Ok((300, 400, 500, 500)), wnd.get_wnd_rect());
+}
 
-// set wnd size
+#[test]
+fn set_wnd_size_test() {
+    let wnd = create_window();
+    wnd.set_wnd_size(750, 1000);
+    assert_eq!(Ok((0, 0, 750, 1000)), wnd.get_wnd_rect());
+}
 
-// TODO: Decide if you will keep set_wnd_pos_and_size
+#[test]
+fn set_wnd_pos_and_size_test() {
+    let wnd = create_window();
+    wnd.set_wnd_pos_and_size(300, 400, 750, 1000);
+    assert_eq!(Ok((300, 400, 750, 1000)), wnd.get_wnd_rect());
+}
 
-// set_visibility (tested implicitly)
+#[test]
+fn minimize_test()  {
+    let wnd = create_window();
+    wnd.minimize();
+    assert_eq!(Some(events::WndEvent::WindowMinimized), wnd.get_wnd_event());
+}
+#[test]
+fn maximize_test()  {
+    let wnd = create_window();
+    wnd.maximize();
+    let (width, height) = wnd.get_wnd_size().expect("Window shouldn't be closed.");
+    assert_eq!(Some(events::WndEvent::WindowMaximized { width, height }), wnd.get_wnd_event());
+}
 
-// minimize
-
-// maximize
-
-// close
 #[test]
 fn close_test() {
     let wnd = create_window();
     wnd.close();
-    assert_eq!(Some(errors::WindowError::WindowClosed), wnd.close());
+    sleep(100);
+    assert_eq!(Some(events::WndEvent::WindowClosed), wnd.get_wnd_event());
+    assert_eq!(Some(WindowError::WindowClosed), wnd.close());
 }
-
-// Testing drawing? (this might be better done with unit tests as
-//                   I'm not sure how I would validate the results)

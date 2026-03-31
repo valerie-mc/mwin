@@ -4,7 +4,7 @@ mod linux;
 use std::sync::{atomic, mpsc};
 
 use crate::{
-    errors::WindowError,
+    WindowError,
     events::WndEvent,
     requests::WndRequest,
     handler::microsoft::ms_window,
@@ -14,13 +14,13 @@ use crate::{
 /// 
 /// When initalized, the [`WindowHandler`] creates a concrete window struct
 /// (which is dependent on the operating system) in a new thread. The
-/// [`WindowHandler`] can be used to send [`WndRequest`]s to the window
-/// (eg. [`get_client_rect`] or [`set_wnd_pos`]) and receive [`WndEvent`]s from
-/// the window (eg. [`KeyboardInput`] or [`WindowMinimized`]).
+/// [`WindowHandler`] can be used to send requests to the window
+/// (eg. `get_client_rect` or `set_wnd_pos`) and receive [`WndEvent`]s from
+/// the window (eg. [`WndEvent::KeyboardInput`] or [`WndEvent::WindowMinimized`]).
 /// 
 /// Currently, the only supported operating system is Windows. Trying to create
 /// a [`WindowHandler`] on an unsupported operating system will return
-/// [`WindowError::UnsupportedOS`]. All [`WindowHandler`] methods, except [`new`],
+/// [`WindowError::UnsupportedOS`]. All [`WindowHandler`] methods, except `new`,
 /// will return [`WindowError::WindowClosed`] if associated window was closed.
 /// 
 /// Note: If the [`WindowHandler`] is dropped, the associated window will be
@@ -28,7 +28,7 @@ use crate::{
 /// 
 /// # Examples
 /// ```
-/// use mwin::{errors, events, WindowHandler};
+/// use mwin::{events, WindowHandler};
 /// 
 /// // Creates a new window with the title "My Window", at (0, 0) with a size of 500 by 500.
 /// let window = WindowHandler::new("My Window", 0, 0, 500, 500)
@@ -41,17 +41,17 @@ use crate::{
 ///         match wnd_event {
 ///             // Stops running when the window is closed.
 ///             events::WndEvent::WindowClosed => run = false,
-///             events::WndEvent::KeyboardInput { kb_event } => {
-///                 match kb_event.key {
+///             events::WndEvent::KeyboardInput { key_event } => {
+///                 match key_event.key {
 ///                     // Closes the window and stops running.
 ///                     events::KeyCode::Q => {
 ///                         run = false;
 ///                         window.close();
 ///                     }
 ///                     events::KeyCode::H => {
-///                         // Prints "Hello World" only when 'H' is Pressed and 'Shift' is held
-///                         if kb_event.state == events::KeyState::Pressed && 
-///                            kb_event.modifiers.contains(events::Modifiers::SHIFT) {
+///                         // Prints "Hello World" only when 'H' is Pressed and 'Shift' is held.
+///                         if key_event.state == events::KeyState::Pressed && 
+///                            key_event.modifiers.contains(events::Modifiers::SHIFT) {
 ///                             println!("Hello World");
 ///                         }
 ///                     }
@@ -66,23 +66,24 @@ use crate::{
 /// The [`WindowHandler`] can also be used to draw to the window.
 /// ```
 /// use std::{thread, time::Duration};
-/// use mwin::{errors, events, WindowHandler};
+/// use mwin::WindowHandler;
 /// 
 /// // Creates a new window with the title "My Window", at (0, 0) with a size of 500 by 500.
 /// let window = WindowHandler::new("My Window", 0, 0, 500, 500)
 ///     .expect("Current operating system is unsupported.");
 /// 
-/// // Creates a buffer of 500 * 500 white pixels. 
+/// // Creates a buffer of 500 x 500 white pixels. 
 /// let buffer: Vec<u8> = vec![255; 3 * (500 * 500)];
 /// 
 /// window.set_buffer(buffer);
+/// window.draw_buffer();
 /// 
-/// // This stops the window from closing when the WindowHandler is dropped.
+/// // Prevents the WindowHandler from being dropped immediately and closing the window.
 /// thread::sleep(Duration::from_secs(5));
 /// ```
-/// To note, [`set_buffer`] can safely be used on any supported os, but is slower
-/// than using [`set_buffer_direct`] because it converts the given buffer to the
-/// format expected by the current os. See [`set_buffer_direct`] for more information.
+/// To note, [`Self::set_buffer`] can safely be used on any supported os, but is slower
+/// than using [`Self::set_buffer_direct`] because it converts the given buffer to the
+/// format expected by the current os. See [`Self::set_buffer_direct`] for more information.
 #[derive(Debug)]
 pub struct WindowHandler {
     req_sender: mpsc::Sender<WndRequest>,
@@ -96,11 +97,14 @@ impl WindowHandler {
     /// the given title, position, and size. Returns [`WindowError::UnsupportedOS`]
     /// error if the current os is unsupported.
     /// 
+    /// Note: The image buffer of the window is set to the given size of the window
+    /// by default.
+    /// 
     /// # Examples
     /// 
     /// ```
-    /// use mwin::WindowHanlder;
-    /// let wnd = WindowHanlder::new("My Window", 100, 100, 1000, 500)
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("My Window", 100, 100, 1000, 500)
     ///     .expect("Current operating system is unsupported.");
     /// ```
     pub fn new(title: &str, x: i32, y: i32, width: i32, height: i32) -> Result<Self, WindowError> {
@@ -121,7 +125,6 @@ impl WindowHandler {
                     ).run()
                 })
             },
-            // "linux" => thread::spawn(move || { WindowLinux::new(title, req_receiver).run() }),
             _ => return Err(WindowError::UnsupportedOS),
         };
 
@@ -131,23 +134,24 @@ impl WindowHandler {
         })
     }
 
+    // * Events * //
     /// Returns a [`Vec<WndEvent>`] that the [`WindowHandler`] has recieved from 
     /// the window.
     /// 
     /// [`WndEvent`]s are not saved by the [`WindowHandler`], as such, when 
-    /// [`get_wnd_events`] is called, the returned [`WndEvent`]s are removed
+    /// [`Self::get_wnd_events`] is called, the returned [`WndEvent`]s are removed
     /// from the [`WindowHandler`].
     /// 
     /// # Examples
     /// 
     /// ```
-    /// use mwin::{events, WindowHandler};
+    /// use mwin::{events::WndEvent, WindowHandler};
     /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
     ///     .expect("Current operating system is unsupported.");
     /// 
     /// for event in wnd.get_wnd_events() {
     ///     match event {
-    ///         events::WndEvent::WindowClosed => println!("Window closed."),
+    ///         WndEvent::WindowClosed => println!("Window closed."),
     ///         _ => (),
     ///     }
     /// }
@@ -161,19 +165,19 @@ impl WindowHandler {
     /// the window, or [`None`] if there are no [`WndEvent`]s.
     /// 
     /// [`WndEvent`]s are not saved by the [`WindowHandler`], as such, when 
-    /// [`get_wnd_events`] is called, the returned [`WndEvent`]s are removed
+    /// [`Self::get_wnd_event`] is called, the returned [`WndEvent`] is removed
     /// from the [`WindowHandler`].
     /// 
     /// # Examples
     /// 
     /// ```
-    /// use mwin::{events, WindowHandler};
+    /// use mwin::{events::WndEvent, WindowHandler};
     /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
     ///     .expect("Current operating system is unsupported.");
     /// 
     /// if let Some(event) = wnd.get_wnd_event() {
     ///     match event {
-    ///         events::WndEvent::WindowClosed => println!("Window closed."),
+    ///         WndEvent::WindowClosed => println!("Window closed."),
     ///         _ => (),
     ///     }
     /// }
@@ -226,7 +230,7 @@ impl WindowHandler {
     /// let wnd = WindowHandler::new("Window", 0, 250, 500, 750)
     ///     .expect("Current operating system is unsupported.");
     /// 
-    /// // Exact size of the boarder depends on the os, this represents Windows' border
+    /// // Exact size of the boarder depends on the os, this represents Windows' border.
     /// assert_eq!((482, 706), wnd.get_wnd_size().expect("Window shouldn't be closed."));
     /// ```
     pub fn get_wnd_size(&self) -> Result<(i32, i32), WindowError> {
@@ -244,10 +248,10 @@ impl WindowHandler {
     /// 
     /// ```
     /// use mwin::WindowHandler;
-    /// let wnd = WindowHandler::new("Window", 0, 250, 500, 750)
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
     ///     .expect("Current operating system is unsupported.");
     /// 
-    /// let (x, y) = wnd.get_cursor_pos();
+    /// let (x, y) = wnd.get_cursor_pos().expect("Window shouldn't be closed.");
     /// ```
     pub fn get_cursor_pos(&self) -> Result<(i32, i32), WindowError> {
         let (rtrn, recv) = mpsc::channel();
@@ -265,10 +269,10 @@ impl WindowHandler {
     /// 
     /// ```
     /// use mwin::WindowHandler;
-    /// let wnd = WindowHandler::new("Window", 0, 250, 500, 750)
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
     ///     .expect("Current operating system is unsupported.");
     /// 
-    /// let (x, y) = wnd.get_cursor_client_pos();
+    /// let (x, y) = wnd.get_cursor_client_pos().expect("Window shouldn't be closed.");
     /// ```
     pub fn get_cursor_client_pos(&self) -> Result<(i32, i32), WindowError> {
         let (rtrn, recv) = mpsc::channel();
@@ -276,11 +280,36 @@ impl WindowHandler {
         self.send_request(req, recv)
     }
 
+    /// Returns `true` if the window is visible or [`WindowError::WindowClosed`]
+    /// if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// assert!(wnd.is_visible().expect("Window shouldn't be closed."));
+    /// ```
     pub fn is_visible(&self) -> Result<bool, WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::IsVisible { rtrn };
         self.send_request(req, recv)
     }
+    
+    /// Returns `true` if the window is focused or [`WindowError::WindowClosed`]
+    /// if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// assert!(wnd.is_focused().expect("Window shouldn't be closed."));
+    /// ```
     pub fn is_focused(&self) -> Result<bool, WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::IsFocused { rtrn };
@@ -288,38 +317,144 @@ impl WindowHandler {
     }
 
     // * Setters * //
+    /// Sets the position of the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.set_wnd_pos(100, 100);
+    /// assert_eq!((100, 100, 500, 500), wnd.get_wnd_rect().expect("Window shouldn't be closed."));
+    /// ```
     pub fn set_wnd_pos(&self, x: i32, y: i32) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetWndPos { args: (x, y), rtrn };
         self.send_request(req, recv).err()
     }
+    /// Sets the size of the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.set_wnd_size(750, 750);
+    /// assert_eq!((0, 0, 750, 750), wnd.get_wnd_rect().expect("Window shouldn't be closed."));
+    /// ```
     pub fn set_wnd_size(&self, width: i32, height: i32) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetWndSize { args: (width, height), rtrn };
         self.send_request(req, recv).err()
     }
-    // TODO: Remove
+    /// Sets the position and size of the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.set_wnd_pos_and_size(100, 100, 750, 750);
+    /// assert_eq!((100, 100, 750, 750), wnd.get_wnd_rect().expect("Window shouldn't be closed."));
+    /// ```
     pub fn set_wnd_pos_and_size(&self, x: i32, y: i32, width: i32, height: i32) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetWndPosAndSize { args: (x, y, width, height), rtrn };
         self.send_request(req, recv).err()
     }
 
+    /// Sets the visibility of the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.set_visibility(false);
+    /// assert!(!wnd.is_visible().expect("Window shouldn't be closed."));
+    /// ```
     pub fn set_visibility(&self, visible: bool) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetVisibility { args: visible, rtrn };
         self.send_request(req, recv).err()
     }
+    
+    /// Minimizes the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::{events::WndEvent, WindowHandler};
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.minimize();
+    /// assert_eq!(Some(WndEvent::WindowMinimized), wnd.get_wnd_event());
+    /// ```
     pub fn minimize(&self) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Minimize { rtrn };
         self.send_request(req, recv).err()
     }
+    
+    /// Maximizes the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::{events::WndEvent, WindowHandler};
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.maximize();
+    /// let (width, height) = wnd.get_wnd_size().expect("Window shouldn't be closed.");
+    /// assert_eq!(Some(WndEvent::WindowMaximized { width, height }), wnd.get_wnd_event());
+    /// ```
     pub fn maximize(&self) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Maximize { rtrn };
         self.send_request(req, recv).err()
     }
+    
+    /// Closes the window.
+    /// 
+    /// For clarification, a "closed" window is the same thing as a terminated 
+    /// or destroyed window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use std::{thread, time::Duration};
+    /// use mwin::{events::WndEvent, WindowHandler};
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// wnd.close();
+    /// thread::sleep(Duration::from_millis(100)); // Gives the WindowHandler time to recieve the event.
+    /// assert_eq!(Some(WndEvent::WindowClosed), wnd.get_wnd_event());
+    /// ```
     pub fn close(&self) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::Close { rtrn };
@@ -327,30 +462,171 @@ impl WindowHandler {
     }
 
     // * Drawing * //
+    /// Draws the image buffer to the client portion of the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// Note: On Windows, the window cannot be drawn to while it is being moved
+    /// or resized (this is due to Windows entering a modal loop when the user
+    /// moves or resizes the window).
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// // Creates a buffer of 500 x 500 white pixels. 
+    /// let buffer: Vec<u8> = vec![255; 3 * (500 * 500)];
+    /// 
+    /// wnd.set_buffer(buffer);
+    /// wnd.draw_buffer();
+    /// ```
     pub fn draw_buffer(&self) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::DrawBuffer { rtrn };
         self.send_request(req, recv).err()
     }
 
+    /// Resizes the image buffer.
+    /// 
+    /// This is most useful for resizing the image buffer in response to the
+    /// user resizing the window.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// Note: The image buffer is set to the given size of the window by default.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// // Creates a buffer of 500 x 500 white pixels. 
+    /// let buffer: Vec<u8> = vec![255; 3 * (500 * 500)];
+    /// 
+    /// wnd.set_buffer(buffer);
+    /// wnd.draw_buffer();
+    /// 
+    /// // Simulates a user resizing the window.
+    /// wnd.set_wnd_size(750, 750);
+    /// 
+    /// let (width, height) = wnd.get_wnd_size().expect("Window shouldn't be closed.");
+    /// wnd.resize_buffer(width, height);
+    /// wnd.draw_buffer();
+    /// ```
     pub fn resize_buffer(&self, width: i32, height: i32) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::ResizeBuffer { args: (width, height), rtrn };
         self.send_request(req, recv).err()
     }
+    
+    /// Clears the image buffer.
+    /// 
+    /// This sets the image buffer to be a vector a black pixels, while still
+    /// retaining the previous size.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// Note: The image buffer is set to the given size of the window by default.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// // Creates a buffer of 500 x 500 white pixels. 
+    /// let buffer: Vec<u8> = vec![255; 3 * (500 * 500)];
+    /// 
+    /// wnd.set_buffer(buffer);
+    /// wnd.draw_buffer();
+    /// 
+    /// wnd.clear_buffer(); // The image buffer is now a buffer of 500 x 500 black pixels.
+    /// wnd.draw_buffer();
+    /// ```
     pub fn clear_buffer(&self) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::ClearBuffer { rtrn };
         self.send_request(req, recv).err()
     }
 
-    // Expects a buffer of [r_1, g_1, b_2, r_2, g_2, b_2, ...]
+    /// Sets the image buffer to the given buffer.
+    /// 
+    /// This function expects the given buffer to be in the following format:
+    ///     `[r1, g1, b1, r2, g2, b2, r3, g3, b3 ...]`
+    /// with a size of `3 * width * height` where `r`, `g`, and `b` refer to the
+    /// red, green, and blue colour values of each pixel.
+    /// 
+    /// This function converts the given buffer to the format expected by the os,
+    /// as such, it works on all supported os's, but its overhead is slight higher.
+    /// If performance is an issue, use [`Self::set_buffer_direct`] instead.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// // Creates a buffer of 500 x 500 pink pixels.
+    /// let mut buffer: Vec<u8> = vec![0; 3 * (500 * 500)];
+    /// 
+    /// for pixel in 0..(500 * 500) {
+    ///     buffer[3 * pixel]     = 225; // Red
+    ///     buffer[3 * pixel + 1] = 150; // Green
+    ///     buffer[3 * pixel + 2] = 240; // Blue
+    /// }
+    /// 
+    /// wnd.set_buffer(buffer);
+    /// wnd.draw_buffer();
+    /// ```
     pub fn set_buffer(&self, buffer: Vec<u8>) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetBuffer { args: buffer, rtrn };
         self.send_request(req, recv).err()
     }
-    // Directly sets the image buffer, this is os dependent, but faster
+    
+    /// Sets the image buffer to the given buffer.
+    /// 
+    /// Unlike [`Self::set_buffer`], this function directly sets the image buffer, as
+    /// such, this function is faster than [`Self::set_buffer`], but the given buffer
+    /// must be in the format expected by the os.
+    /// 
+    /// On Windows, the expected format is:
+    ///     `[b1, g1, r1, 0, b2, g2, r2, 0, b3, g3, r3, 0 ...]`
+    /// with a size of `4 * width * height` where `r`, `g`, and `b` refer to the
+    /// red, green, and blue colour values of each pixel.
+    /// 
+    /// Returns [`WindowError::WindowClosed`] if the window was closed.
+    /// 
+    /// # Examples
+    /// 
+    /// Setting the buffer directly on Windows.
+    /// ```
+    /// use mwin::WindowHandler;
+    /// let wnd = WindowHandler::new("Window", 0, 0, 500, 500)
+    ///     .expect("Current operating system is unsupported.");
+    /// 
+    /// // Creates a buffer of 500 x 500 pink pixels (on Windows).
+    /// let mut buffer: Vec<u8> = vec![0; 4 * (500 * 500)];
+    /// 
+    /// for pixel in 0..(500 * 500) {
+    ///     buffer[4 * pixel]     = 240; // Blue
+    ///     buffer[4 * pixel + 1] = 150; // Green
+    ///     buffer[4 * pixel + 2] = 225; // Red
+    ///     buffer[4 * pixel + 3] = 0;   // Padding (although it is already set to 0)
+    /// }
+    /// 
+    /// wnd.set_buffer_direct(buffer);
+    /// wnd.draw_buffer();
+    /// ```
     pub fn set_buffer_direct(&self, buffer: Vec<u8>) -> Option<WindowError> {
         let (rtrn, recv) = mpsc::channel();
         let req = WndRequest::SetBufferDirect { args: buffer, rtrn };

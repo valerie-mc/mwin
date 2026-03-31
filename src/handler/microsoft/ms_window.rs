@@ -274,7 +274,7 @@ impl MSWindow {
 
         // * Create and send event
         self.send_event(WndEvent::KeyboardInput { 
-            kb_event: KeyEvent {
+            key_event: KeyEvent {
                 key,
                 state,
                 modifiers,
@@ -284,7 +284,7 @@ impl MSWindow {
     
     fn handle_mouse_input(&self, key: KeyCode, state: KeyState, wparam: WPARAM, lparam: LPARAM) {
         self.send_event(WndEvent::MouseInput { 
-            mb_event: MouseEvent {
+            mouse_event: MouseEvent {
                 key,
                 state,
                 modifiers: MSWindow::get_mouse_modifiers(wparam),
@@ -301,7 +301,7 @@ impl MSWindow {
         };
 
         self.send_event(WndEvent::MouseScrolled { 
-            ms_event: ScrollEvent {
+            scroll_event: ScrollEvent {
                 modifiers: MSWindow::get_mouse_modifiers(wparam),
                 position: MSWindow::get_mouse_position(lparam),
                 direction,
@@ -311,7 +311,7 @@ impl MSWindow {
 
     fn handle_cursor_move(&self, wparam: WPARAM, lparam: LPARAM) {
         self.send_event(WndEvent::CursorMoved { 
-            cm_event: CursorEvent {
+            cursor_event: CursorEvent {
                 modifiers: MSWindow::get_mouse_modifiers(wparam),
                 position: MSWindow::get_mouse_position(lparam),
             } 
