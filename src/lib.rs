@@ -4,7 +4,7 @@
 //! It is specifically developed for prototyping Rust applications or for simplying
 //! playing around with windows in Rust through a simple and convienent interface.
 //! 
-//! To get started, you can take a look at the [`WindowHandler`] documenation for
+//! To get started, you can take a look at the [`WindowHandler`] documentation for
 //! some examples.
 //! 
 //! If you are interested in more technical, but advanced window creation and

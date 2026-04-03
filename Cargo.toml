@@ -8,6 +8,11 @@ readme = "README.md"
 rust-version = "1.86.0"
 edition = "2024"
 
+
+[package.metadata.docs.rs]
+
+default-target = "x86_64-pc-windows-msvc"
+
 [dependencies]
 bitflags = "2.11.0"
 windows-strings = "0.5.1"
