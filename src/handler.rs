@@ -1,14 +1,16 @@
+#[cfg(windows)]
 mod microsoft;
-mod linux;
+// #[cfg(unix)]
+mod unix;
 
 use std::sync::{atomic, mpsc};
 
-use crate::{
-    WindowError,
-    events::WndEvent,
-    requests::WndRequest,
-    handler::{microsoft::ms_window, linux::linux_window},
-};
+use crate::{WindowError, events::WndEvent, requests::WndRequest};
+
+#[cfg(windows)]
+use crate::handler::microsoft::ms_window;
+#[cfg(unix)]
+use crate::handler::unix::unix_window;
 
 /// A handler for a window.
 /// 
@@ -117,6 +119,7 @@ impl WindowHandler {
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
         match std::env::consts::OS {
+            #[cfg(windows)]
             "windows" => {
                 std::thread::spawn(move || {
                     ms_window::MSWindowContainer::new(
@@ -125,9 +128,10 @@ impl WindowHandler {
                     ).start();
                 })
             },
+            #[cfg(unix)]
             "linux" => {
                 std::thread::spawn(move || {
-                    linux_window::LinuxWindow::new(
+                    unix_window::UnixWindow::new(
                         title, x, y, width, height, 
                         id, req_receiver, evt_sender
                     ).start();
