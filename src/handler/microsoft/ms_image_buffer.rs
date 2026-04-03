@@ -1,7 +1,5 @@
 use windows::Win32::Graphics::Gdi::{BITMAPINFO, BI_RGB};
 
-use crate::traits::ImageBuffer;
-
 #[derive(Default)]
 pub struct MSImageBuffer {
     pub buffer: Vec<u8>, // [b, g, r, 0] = one pixel with colour of rgb
@@ -10,7 +8,7 @@ pub struct MSImageBuffer {
     pub bitmap_info: BITMAPINFO,
 }
 
-impl ImageBuffer for MSImageBuffer {
+impl crate::traits::ImageBuffer for MSImageBuffer {
     fn init(&mut self, width: i32, height: i32) {
         // Info from: https://www.youtube.com/watch?v=Zp1SXzISgy4
         self.bitmap_info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFO>() as u32;

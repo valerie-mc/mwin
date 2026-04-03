@@ -102,7 +102,7 @@ impl MSWindowContainer {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn start(&mut self) {
         self.subclass.run();
     }
 }

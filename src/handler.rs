@@ -7,7 +7,7 @@ use crate::{
     WindowError,
     events::WndEvent,
     requests::WndRequest,
-    handler::microsoft::ms_window,
+    handler::{microsoft::ms_window, linux::linux_window},
 };
 
 /// A handler for a window.
@@ -122,9 +122,17 @@ impl WindowHandler {
                     ms_window::MSWindowContainer::new(
                         title, x, y, width, height, 
                         id, req_receiver, evt_sender
-                    ).run()
+                    ).start();
                 })
             },
+            "linux" => {
+                std::thread::spawn(move || {
+                    linux_window::LinuxWindow::new(
+                        title, x, y, width, height, 
+                        id, req_receiver, evt_sender
+                    ).start();
+                })
+            }
             _ => return Err(WindowError::UnsupportedOS),
         };
 

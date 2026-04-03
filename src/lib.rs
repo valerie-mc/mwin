@@ -2,7 +2,7 @@
 //!
 //! This crate is a minimal window manager (`mwin`) which focuses on ease of use.
 //! It is specifically developed for prototyping Rust applications or for simplying
-//! playing around with windows in Rust through a simple and convienent interface.
+//! playing around with windows in Rust through a simple and convenient interface.
 //! 
 //! To get started, you can take a look at the [`WindowHandler`] documentation for
 //! some examples.
