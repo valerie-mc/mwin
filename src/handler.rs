@@ -3,7 +3,7 @@ mod microsoft;
 // #[cfg(unix)]
 mod unix;
 
-use std::sync::{atomic, mpsc};
+use std::{process::ExitStatus, sync::{atomic, mpsc}};
 
 use crate::{WindowError, events::WndEvent, requests::WndRequest};
 
@@ -96,11 +96,13 @@ impl WindowHandler {
     /// Creates a new [`WindowHandler`].
     /// 
     /// When created, the [`WindowHandler`] creates a window in a new thread with
-    /// the given title, position, and size. Returns [`WindowError::UnsupportedOS`]
-    /// error if the current os is unsupported.
+    /// the given title, position, and size.
     /// 
     /// Note: The image buffer of the window is set to the given size of the window
     /// by default.
+    /// 
+    /// # Errors
+    /// Returns [`WindowError::UnsupportedOS`] error if the current os is unsupported.
     /// 
     /// # Examples
     /// 
@@ -118,35 +120,58 @@ impl WindowHandler {
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
+        // One time channel to determine the status of the window after creation
+        let (status_sender, status_receiver) = mpsc::channel::<Result<(), WndError>>();
+
         match std::env::consts::OS {
             #[cfg(windows)]
             "windows" => {
                 std::thread::spawn(move || {
-                    ms_window::MSWindowContainer::new(
+                    let window_res = ms_window::MSWindowContainer::new(
                         title, x, y, width, height, 
                         id, req_receiver, evt_sender
-                    ).start();
+                    ).map(());
+
+                    match window_res {
+                        Ok(mut window) => {
+                            status_sender.send(Ok(()));
+                            window.start();
+                        }
+                        Err(e) => {
+                            status_sender.send(Err(e));
+                        }
+                    }
                 })
             },
             #[cfg(unix)]
             "linux" => {
                 std::thread::spawn(move || {
-                    unix_window::UnixWindow::new(
+                    let window_res = unix_window::UnixWindow::new(
                         title, x, y, width, height, 
                         id, req_receiver, evt_sender
-                    ).start();
+                    );
+
+                    match window_res {
+                        Ok(mut window) => {
+                            status_sender.send(Ok(()));
+                            window.start();
+                        }
+                        Err(e) => {
+                            status_sender.send(Err(e));
+                        }
+                    }
                 })
             }
             _ => return Err(WindowError::UnsupportedOS),
         };
 
-        // TODO: Could use wait on the receiver to get confirmation that the window was created
-        // TODO: Also can use this to get errors from the window
-
-        Ok(WindowHandler {
-            req_sender,
-            evt_receiver,
-        })
+        status_receiver
+            .recv()
+            .expect("Status sender should have sent one message.")
+            .map(WindowHandler {
+                req_sender,
+                evt_receiver,
+            })
     }
 
     // * Events * //

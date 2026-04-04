@@ -44,7 +44,7 @@ impl MSWindowContainer {
         id: usize,
         req_receiver: mpsc::Receiver<WndRequest>,
         evt_sender: mpsc::Sender<WndEvent>,
-    ) -> Self {
+    ) -> Result<Self, WindowError> {
         // Converts class name in PCWSTR (because for some reason lpszClassName doesn't accept an HSTRING)
         // I used ChatGPT for this (also, side note, the std::iter::once(0) is so that the string is null terminated)
         let class_name = format!("mwin{}", id);
@@ -64,7 +64,13 @@ impl MSWindowContainer {
 
         // Registers settings with window (should only fail if out of memory)
         if unsafe { RegisterClassW(&wnd_class) == 0 } {
-            unsafe { panic!("Failed to register window class. Window error code '{:?}'", GetLastError()) };
+            let last_error = unsafe { GetLastError() };
+
+            if last_error == ERROR_NOT_ENOUGH_MEMORY {
+                return Err(WindowError::OutOfMemory);
+            } else {
+                panic!("Failed to register window class. Window error code '{:?}'", last_error);
+            }
         }
 
         // Create window + init image_buffer (should only fail if out of memory)
@@ -75,7 +81,15 @@ impl MSWindowContainer {
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,  // Default window
             x, y, width, height,
             None, None, Some(wnd_class.hInstance), None // Other settings
-        ).unwrap_or_else(|_s| panic!("Failed to create window. Window error code '{:?}'", GetLastError())) };
+        ).unwrap_or_else(|_s| {
+            let last_error = unsafe { GetLastError() };
+
+            if last_error == ERROR_NOT_ENOUGH_MEMORY {
+                return Err(WindowError::OutOfMemory);
+            } else {
+                panic!("Failed to create window. Window error code '{:?}'", last_error);
+            }
+        }) };
 
         let mut image_buffer = MSImageBuffer::default();
         image_buffer.init(width, height);
@@ -93,13 +107,20 @@ impl MSWindowContainer {
 
         // Register subclass with id (should only fail if out of memory)
         if unsafe { !Shell::SetWindowSubclass(hwnd, Some(wnd_subclass_proc), id, subclass_ptr).as_bool() } {
-            unsafe { panic!("Failed to set subclass. Window error code '{:?}'", GetLastError()); }
+            let last_error = unsafe { GetLastError() };
+
+            if last_error == ERROR_NOT_ENOUGH_MEMORY {
+                return Err(WindowError::OutOfMemory);
+            } else {
+                panic!("Failed to set subclass. Window error code '{:?}'", last_error);
+            }
         }
-        
-        MSWindowContainer {
+
+
+        Ok(MSWindowContainer {
             subclass,
             _class_name_box: class_name_box,
-        }
+        })
     }
 
     pub fn start(&mut self) {

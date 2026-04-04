@@ -34,17 +34,48 @@ impl UnixWindow {
         id: usize,
         req_receiver: mpsc::Receiver<WndRequest>,
         evt_sender: mpsc::Sender<WndEvent>,
-    ) -> Self {
+    ) -> Result<Self, WindowError> {
+        // Open the connection to the X server. Use the DISPLAY environment variable.
+        let (conn, screen_num) = x11rb::connect(None)?;
+
+        // Get the screen #screen_num
+        let screen = &conn.setup().roots[screen_num];
+
+        // Ask for our window's Id
+        let win = conn.generate_id()?;
+
+        // Create the window
+        conn.create_window(
+            COPY_DEPTH_FROM_PARENT,    // depth (same as root)
+            win,                       // window Id
+            screen.root,               // parent window
+            0,                         // x
+            0,                         // y
+            150,                       // width
+            150,                       // height
+            10,                        // border width
+            WindowClass::INPUT_OUTPUT, // class
+            screen.root_visual,        // visual
+            &Default::default(),
+        )?; // masks, not used yet
+
+        // Map the window on the screen
+        conn.map_window(win)?;
+
+        // Make sure commands are sent before the sleep, so window is shown
+        conn.flush()?;
+
+        std::thread::sleep(std::time::Duration::from_secs(10));
 
         let mut image_buffer = UnixImageBuffer::default();
         image_buffer.init(width, height);
 
-        UnixWindow {
+        Ok(UnixWindow {
             req_receiver,
             evt_sender,
             image_buffer,
             running: true
-        }
+        })
     }
 
     pub fn start(&mut self) {

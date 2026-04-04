@@ -32,6 +32,8 @@ pub use crate::handler::WindowHandler;
 pub enum WindowError {
     /// Error due to a [`crate::WindowHandler`] being created on an usupported os.
     UnsupportedOS,
+    /// Error due to the system running out of memory (only occurs on Windows).
+    OutOfMemory,
     /// Error due to a window request being made on a closed window.
     WindowClosed,
 }
@@ -40,6 +42,7 @@ impl std::fmt::Display for WindowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             WindowError::UnsupportedOS => write!(f, "Cannot create a window on '{}' because it is an unsupported os.", std::env::consts::OS),
+            WindowError::OutOfMemory => write!(f, "Out of memory, cannot create window."),
             WindowError::WindowClosed => write!(f, "The window has been closed and/or dropped."),
         }
     }
