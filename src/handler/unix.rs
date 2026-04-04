@@ -1,2 +1,5 @@
-pub mod unix_image_buffer;
-pub mod unix_window;
+pub mod x11_image_buffer;
+pub mod x11_window;
+
+pub mod wayland_image_buffer;
+pub mod wayland_window;

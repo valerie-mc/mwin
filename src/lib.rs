@@ -30,9 +30,13 @@ pub use crate::handler::WindowHandler;
 /// The error type for window requests.
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub enum WindowError {
+    // TODO: Add UnknowError
     /// Error due to a [`crate::WindowHandler`] being created on an usupported os.
     UnsupportedOS,
-    /// Error due to the system running out of memory (only occurs on Windows).
+    /// Error due to a [`crate::WindowHandler`] being created on unix with an
+    /// unsupported display server protocol. Only Wayland and X11 are supported.
+    UnsupportedUnixProtocol,
+    /// Error due to the system running out of memory.
     OutOfMemory,
     /// Error due to a window request being made on a closed window.
     WindowClosed,
@@ -42,6 +46,12 @@ impl std::fmt::Display for WindowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             WindowError::UnsupportedOS => write!(f, "Cannot create a window on '{}' because it is an unsupported os.", std::env::consts::OS),
+            WindowError::UnsupportedUnixProtocol => {
+                match std::env::var("XDG_SESSION_TYPE") {
+                    Ok(val) => write!(f, "Cannot create a window on '{}' because it is an unsupported display server protocol.", val),
+                    Err(_) => write!(f, "Cannot create a window because the XDG_SESSION_TYPE cannot be found.")
+                }
+            }
             WindowError::OutOfMemory => write!(f, "Out of memory, cannot create window."),
             WindowError::WindowClosed => write!(f, "The window has been closed and/or dropped."),
         }

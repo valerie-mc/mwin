@@ -1,16 +1,17 @@
 #[cfg(windows)]
 mod microsoft;
-// #[cfg(unix)]
+#[cfg(unix)]
 mod unix;
 
-use std::{process::ExitStatus, sync::{atomic, mpsc}};
+use std::sync::mpsc;
 
 use crate::{WindowError, events::WndEvent, requests::WndRequest};
 
 #[cfg(windows)]
 use crate::handler::microsoft::ms_window;
 #[cfg(unix)]
-use crate::handler::unix::unix_window;
+use crate::handler::unix::{wayland_window, x11_window};
+
 
 /// A handler for a window.
 /// 
@@ -102,7 +103,10 @@ impl WindowHandler {
     /// by default.
     /// 
     /// # Errors
-    /// Returns [`WindowError::UnsupportedOS`] error if the current os is unsupported.
+    /// 
+    /// Returns [`WindowError::UnsupportedOS`] if the current os is unsupported.
+    /// Returns [`WindowError::OutOfMemory`] if the system has run out of memory
+    /// to create a new window.
     /// 
     /// # Examples
     /// 
@@ -114,14 +118,17 @@ impl WindowHandler {
     pub fn new(title: &str, x: i32, y: i32, width: i32, height: i32) -> Result<Self, WindowError> {
         let title = title.to_string();
 
-        static ID_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
-        let id = ID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
+        #[cfg(windows)]
+        {
+            static ID_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+            let id = ID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
+        }
 
         let (req_sender, req_receiver) = mpsc::channel::<WndRequest>();
         let (evt_sender, evt_receiver) = mpsc::channel::<WndEvent>();
 
         // One time channel to determine the status of the window after creation
-        let (status_sender, status_receiver) = mpsc::channel::<Result<(), WndError>>();
+        let (status_sender, status_receiver) = mpsc::channel::<Result<(), WindowError>>();
 
         match std::env::consts::OS {
             #[cfg(windows)]
@@ -134,33 +141,59 @@ impl WindowHandler {
 
                     match window_res {
                         Ok(mut window) => {
-                            status_sender.send(Ok(()));
+                            let _ = status_sender.send(Ok(()));
                             window.start();
                         }
                         Err(e) => {
-                            status_sender.send(Err(e));
+                            let _ = status_sender.send(Err(e));
                         }
                     }
                 })
             },
             #[cfg(unix)]
             "linux" => {
-                std::thread::spawn(move || {
-                    let window_res = unix_window::UnixWindow::new(
-                        title, x, y, width, height, 
-                        id, req_receiver, evt_sender
-                    );
+                // TODO: This feels messy and I don't like it
+                let Ok(session) = std::env::var("XDG_SESSION_TYPE") else {
+                    return Err(WindowError::UnsupportedUnixProtocol);
+                };
 
-                    match window_res {
-                        Ok(mut window) => {
-                            status_sender.send(Ok(()));
-                            window.start();
+                if session == "wayland" {
+                    std::thread::spawn(move || {
+                        let window_res = wayland_window::WaylandWindow::new(
+                            title, x, y, width, height, 
+                            req_receiver, evt_sender
+                        );
+
+                        match window_res {
+                            Ok(mut window) => {
+                                let _ = status_sender.send(Ok(()));
+                                window.start();
+                            }
+                            Err(e) => {
+                                let _ = status_sender.send(Err(e));
+                            }
                         }
-                        Err(e) => {
-                            status_sender.send(Err(e));
+                    });
+                } else if session == "x11" {
+                    std::thread::spawn(move || {
+                        let window_res = x11_window::X11Window::new(
+                            title, x, y, width, height, 
+                            req_receiver, evt_sender
+                        );
+
+                        match window_res {
+                            Ok(mut window) => {
+                                let _ = status_sender.send(Ok(()));
+                                window.start();
+                            }
+                            Err(e) => {
+                                let _ = status_sender.send(Err(e));
+                            }
                         }
-                    }
-                })
+                    });
+                } else {
+                    return Err(WindowError::UnsupportedUnixProtocol);
+                }
             }
             _ => return Err(WindowError::UnsupportedOS),
         };
@@ -168,7 +201,7 @@ impl WindowHandler {
         status_receiver
             .recv()
             .expect("Status sender should have sent one message.")
-            .map(WindowHandler {
+            .map(|_s| WindowHandler {
                 req_sender,
                 evt_receiver,
             })

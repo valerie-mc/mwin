@@ -11,38 +11,40 @@ use x11rb::COPY_DEPTH_FROM_PARENT;
 
 
 use crate::{
+    WindowError,
     events::*,
-    handler::unix::unix_image_buffer::UnixImageBuffer,
+    handler::unix::x11_image_buffer::X11ImageBuffer,
     requests::WndRequest,
     traits::{ImageBuffer, Window}
 };
 
-pub struct UnixWindow {
+pub struct X11Window {
     req_receiver: mpsc::Receiver<WndRequest>,
     evt_sender: mpsc::Sender<WndEvent>,
-    image_buffer: UnixImageBuffer,
+    image_buffer: X11ImageBuffer,
     running: bool,
 }
 
-impl UnixWindow {
+// Some code has been adapted from https://github.com/psychon/x11rb/blob/master/x11rb/examples/tutorial.rs
+
+impl X11Window {
     pub fn new(
         title: String,
         x: i32,
         y: i32,
         width: i32,
         height: i32,
-        id: usize,
         req_receiver: mpsc::Receiver<WndRequest>,
         evt_sender: mpsc::Sender<WndEvent>,
     ) -> Result<Self, WindowError> {
         // Open the connection to the X server. Use the DISPLAY environment variable.
-        let (conn, screen_num) = x11rb::connect(None)?;
+        let (conn, screen_num) = x11rb::connect(None).unwrap();
 
-        // Get the screen #screen_num
+        // Get the screen from the screen_num
         let screen = &conn.setup().roots[screen_num];
 
         // Ask for our window's Id
-        let win = conn.generate_id()?;
+        let win = conn.generate_id().unwrap();
 
         // Create the window
         conn.create_window(
@@ -57,20 +59,20 @@ impl UnixWindow {
             WindowClass::INPUT_OUTPUT, // class
             screen.root_visual,        // visual
             &Default::default(),
-        )?; // masks, not used yet
+        ).unwrap(); // masks, not used yet
 
         // Map the window on the screen
-        conn.map_window(win)?;
+        conn.map_window(win).unwrap();
 
         // Make sure commands are sent before the sleep, so window is shown
-        conn.flush()?;
+        conn.flush().unwrap();
 
         std::thread::sleep(std::time::Duration::from_secs(10));
 
-        let mut image_buffer = UnixImageBuffer::default();
+        let mut image_buffer = X11ImageBuffer::default();
         image_buffer.init(width, height);
 
-        Ok(UnixWindow {
+        Ok(X11Window {
             req_receiver,
             evt_sender,
             image_buffer,
@@ -83,7 +85,7 @@ impl UnixWindow {
     }
 }
 
-impl Window for UnixWindow {
+impl Window for X11Window {
     fn run(&mut self) {
         while self.running {
             if let Ok(req) = self.req_receiver.try_recv() {
@@ -165,7 +167,7 @@ impl Window for UnixWindow {
     }
 }
 
-impl Drop for UnixWindow {
+impl Drop for X11Window {
     fn drop(&mut self) {
         self.close();
     }

@@ -1,11 +1,11 @@
 #[derive(Default)]
-pub struct UnixImageBuffer {
+pub struct WaylandImageBuffer {
     pub buffer: Vec<u8>, // [b, g, r, 0] = one pixel with colour of rgb
     pub width: i32,
     pub height: i32,
 }
 
-impl crate::traits::ImageBuffer for UnixImageBuffer {
+impl crate::traits::ImageBuffer for WaylandImageBuffer {
     fn init(&mut self, width: i32, height: i32) {
         self.resize_buffer(width, height);
     }

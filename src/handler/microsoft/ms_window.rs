@@ -20,7 +20,10 @@ use windows::Win32::{
 use windows_strings::{HSTRING, PCWSTR};
 
 use crate::{
-    events::*, handler::microsoft::ms_image_buffer::MSImageBuffer, requests::WndRequest, traits::{ImageBuffer, Window}
+    events::*,
+    handler::microsoft::ms_image_buffer::MSImageBuffer,
+    requests::WndRequest,
+    traits::{ImageBuffer, Window},
 };
 
 // As a note, the situtations in which Window API functions return an error was determined using
