@@ -140,6 +140,9 @@ impl WindowHandler {
             _ => return Err(WindowError::UnsupportedOS),
         };
 
+        // TODO: Could use wait on the receiver to get confirmation that the window was created
+        // TODO: Also can use this to get errors from the window
+
         Ok(WindowHandler {
             req_sender,
             evt_receiver,
