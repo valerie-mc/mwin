@@ -11,7 +11,7 @@ management libraries, I recommend checking out [winit] and similar crates.
 [winit]: https://docs.rs/winit/latest/winit/
 
 ## Platform Support
-Mwin currently only supports Windows; however, support for Linux is coming soon.
+Mwin currently only supports Windows; however, support for Linux is planned.
 
 ## Usage
 Add this to your `Cargo.toml`:
